@@ -28,8 +28,8 @@ new( const char *class )
   OUTPUT: RETVAL
 
 const char *
-version(SV *self)
+version(...)
   CODE:
-    RETVAL = "0.0.1";
+    RETVAL = "0.0.2";
   OUTPUT: RETVAL
 
