@@ -8,7 +8,7 @@ use XSLoader;
 
 # ABSTRACT: Perl XS interface to libdtrace
 
-#XSLoader::Load('Devel::libdtrace', $VERSION);
+XSLoader::load('Devel::libdtrace', $VERSION);
 
 1;
 
