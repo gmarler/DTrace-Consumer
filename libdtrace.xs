@@ -7,6 +7,15 @@
 #include <dtrace.h>
 
 /* C Functions */
+int
+bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
+{
+    dtrace_probedata_t     *data = bufdata->dtbda_probe;
+    const dtrace_recdesc_t *rec  = bufdata->dtbda_recdesc;
+    return( DTRACE_HANDLE_OK );
+}
+
+/* And now the XS code, for C functions we want to access directly from Perl */
 
 MODULE = Devel::libdtrace              PACKAGE = Devel::libdtrace
 
@@ -52,11 +61,4 @@ version(...)
     RETVAL = "0.0.2";
   OUTPUT: RETVAL
 
-int
-bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
-  PREINIT:
-    dtrace_probedata_t     *data = bufdata->dtbda_probe;
-    const dtrace_recdesc_t *rec  = bufdata->dtbda_recdesc;
-  CODE:
-    RETVAL = DTRACE_HANDLE_OK;
-  OUTPUT: RETVAL
+
