@@ -1,0 +1,2 @@
+dtrace_bufdata_t *         T_PTR
+const dtrace_bufdata_t *   T_PTR
