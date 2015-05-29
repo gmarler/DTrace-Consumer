@@ -37,6 +37,8 @@ new( const char *class )
     (void)dtrace_setopt(dtp, "bufsize", "512k");
     (void)dtrace_setopt(dtp, "aggsize", "512k");
 
+
+
     /* Create a reference to the hash */
     SV* const self = newRV_noinc( (SV *)hash );
 
@@ -50,3 +52,11 @@ version(...)
     RETVAL = "0.0.2";
   OUTPUT: RETVAL
 
+int
+bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
+  PREINIT:
+    dtrace_probedata_t     *data = bufdata->dtbda_probe;
+    const dtrace_recdesc_t *rec  = bufdata->dtbda_recdesc;
+  CODE:
+    RETVAL = DTRACE_HANDLE_OK;
+  OUTPUT: RETVAL
