@@ -6,7 +6,7 @@
 
 #include <dtrace.h>
 
-/* C++ Functions */
+/* C Functions */
 
 MODULE = Devel::libdtrace              PACKAGE = Devel::libdtrace
 
@@ -16,9 +16,26 @@ PROTOTYPES: ENABLED
 
 SV *
 new( const char *class )
+  PREINIT:
+    dtrace_hdl_t *dtp;
   CODE:
+    int  err;
     /* Create a hash */
     HV* hash = newHV();
+
+    /* Create DTrace Handle / Context */
+    /* NOTE: DTRACE_VERSION comes from dtrace.h */
+    /*       This was written when it was version 3 */
+    if ((dtp = dtrace_open(DTRACE_VERSION, 0, &err)) == NULL)
+      croak("Unable to create a DTrace handle: %s",
+            dtrace_errmsg(NULL,err));
+
+    /*
+     * Set buffer size and aggregation buffer size to a reasonable
+     * size of 512K (for systems with many CPUs).
+     */
+    (void)dtrace_setopt(dtp, "bufsize", "512k");
+    (void)dtrace_setopt(dtp, "aggsize", "512k");
 
     /* Create a reference to the hash */
     SV* const self = newRV_noinc( (SV *)hash );
