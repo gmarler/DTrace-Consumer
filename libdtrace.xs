@@ -46,7 +46,11 @@ new( const char *class )
     (void)dtrace_setopt(dtp, "bufsize", "512k");
     (void)dtrace_setopt(dtp, "aggsize", "512k");
 
-
+/* TODO: Add context!
+    if ((dtrace_handle_buffered(dtp, bufhandler, context)) == -1)
+      croak("dtrace_handle_buffered failed: %s",
+            dtrace_errmsg(dtp,dtrace_errno(dtp)));
+*/
 
     /* Create a reference to the hash */
     SV* const self = newRV_noinc( (SV *)hash );
