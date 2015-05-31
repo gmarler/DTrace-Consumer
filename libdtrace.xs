@@ -8,7 +8,13 @@
 
 /* Context */
 typedef struct {
-  dtrace_hdl_t  *dtp;
+  dtrace_hdl_t  *dtc_handle;
+  /* dtc_templ ??? */
+  /* dtc_args  ??? */
+  /* dtc_callback  */
+  /* dtc_error     */
+  /* dtc_ranges    */
+  dtrace_aggvarid_t dtc_ranges_varid;
 } CTX;
 
 /* C Functions */
@@ -45,7 +51,7 @@ new( const char *class )
       croak("Unable to create a DTrace handle: %s",
             dtrace_errmsg(NULL,err));
 
-    ctx->dtp = dtp;
+    ctx->dtc_handle = dtp;
 
     /*
      * Set buffer size and aggregation buffer size to a reasonable
@@ -91,5 +97,7 @@ DESTROY(SV *self)
 
     if ( svp && SvOK(*svp) ) {
       ctx = (CTX *)SvIV(*svp);
+      if (ctx->dtc_handle)
+        dtrace_close(ctx->dtc_handle);
       free(ctx);
     }
