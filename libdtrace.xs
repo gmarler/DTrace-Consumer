@@ -6,6 +6,11 @@
 
 #include <dtrace.h>
 
+/* Context */
+typedef struct {
+  dtrace_hdl_t  *dtp;
+} CTX;
+
 /* C Functions */
 int
 bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
@@ -27,6 +32,7 @@ SV *
 new( const char *class )
   PREINIT:
     dtrace_hdl_t *dtp;
+    CTX* ctx = (CTX *)malloc( sizeof(CTX) );
   CODE:
     int  err;
     /* Create a hash */
@@ -38,6 +44,8 @@ new( const char *class )
     if ((dtp = dtrace_open(DTRACE_VERSION, 0, &err)) == NULL)
       croak("Unable to create a DTrace handle: %s",
             dtrace_errmsg(NULL,err));
+
+    ctx->dtp = dtp;
 
     /*
      * Set buffer size and aggregation buffer size to a reasonable
@@ -51,6 +59,12 @@ new( const char *class )
       croak("dtrace_handle_buffered failed: %s",
             dtrace_errmsg(dtp,dtrace_errno(dtp)));
     */
+
+    /* Store the pointer to the instance context struct in the hash
+     * It's private, so if a user plays with it, everything breaks.
+     */
+    hv_store(hash, "_my_instance_ctx", strlen("_my_instance_ctx"),
+             newSViv( PTR2IV(ctx) ), FALSE);
 
     /* Create a reference to the hash */
     SV* const self = newRV_noinc( (SV *)hash );
@@ -68,7 +82,14 @@ version(...)
 void
 DESTROY(SV *self)
   PREINIT:
-    HV *hash;
-
+    HV  *hash;
+    CTX *ctx;
+    SV  **svp;
   CODE:
     hash = (HV *)SvRV(self);
+    svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
+
+    if ( svp && SvOK(*svp) ) {
+      ctx = (CTX *)SvIV(*svp);
+      free(ctx);
+    }
