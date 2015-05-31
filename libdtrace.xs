@@ -65,4 +65,10 @@ version(...)
     RETVAL = "0.0.2";
   OUTPUT: RETVAL
 
+void
+DESTROY(SV *self)
+  PREINIT:
+    HV *hash;
 
+  CODE:
+    hash = (HV *)SvRV(self);
