@@ -86,6 +86,41 @@ version(...)
   OUTPUT: RETVAL
 
 void
+setopt(SV *self, char *option, ...)
+  PREINIT:
+    HV           *hash;
+    CTX          *ctx;
+    SV           **svp;
+    int           rval;
+    dtrace_hdl_t *dtp;
+    char         *value;
+  CODE:
+    hash = (HV *)SvRV(self);
+    svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
+
+    if (! SvPOK( ST(1) )) {
+      croak("setopt: Invalid option specified");
+    }
+    if (SvPOK( ST(2) )) {
+      value = (char *)(SvPV(ST( 2 ), PL_na));
+    } else
+      value = NULL;
+
+    if ( svp && SvOK(*svp) ) {
+      ctx = (CTX *)SvIV(*svp);
+      if (ctx->dtc_handle) {
+        dtp = ctx->dtc_handle;
+        rval = dtrace_setopt(dtp, option, value);
+        if (rval != 0) {
+          croak("Couldn't set option '%s': %s", *option,
+                 dtrace_errmsg(dtp, dtrace_errno(dtp)));
+        }
+      } else {
+        croak("setopt: No valid DTrace handle!");
+      }
+    }
+
+void
 DESTROY(SV *self)
   PREINIT:
     HV  *hash;
