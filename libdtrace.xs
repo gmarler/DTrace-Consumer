@@ -136,10 +136,12 @@ setopt(SV *self, char *option, ...)
 void
 strcompile(SV *self, char *program)
   PREINIT:
-    HV           *hash;
-    CTX          *ctx;
-    SV           **svp;
-    dtrace_hdl_t *dtp;
+    HV                 *hash;
+    CTX                *ctx;
+    SV                 **svp;
+    dtrace_hdl_t       *dtp;
+    dtrace_prog_t      *dp;
+    dtrace_proginfo_t   info;
   CODE:
     hash = (HV *)SvRV(self);
     svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
@@ -149,10 +151,22 @@ strcompile(SV *self, char *program)
       if (ctx->dtc_handle) {
         dtp = ctx->dtc_handle;
       } else {
-        croak("setopt: No valid DTrace handle!");
+        croak("strcompile: No valid DTrace handle!");
       }
     }
 
+    /* If less than 2 args passed in, we're missing a program */
+    if (items < 2)
+      croak("strcompile: Expected a program!");
+
+    if ((dp = dtrace_program_strcompile(dtp, program,
+              DTRACE_PROBESPEC_NAME, 0, 0, NULL)) == NULL)
+      croak("Couldn't compile '%s': %s", program,
+            dtrace_errmsg(dtp, dtrace_errno(dtp)));
+
+    if (dtrace_program_exec(dtp, dp, &info) == -1)
+      croak("Couldn't execute '%s': %s", program,
+            dtrace_errmsg(dtp, dtrace_errno(dtp)));
 
 
 void
