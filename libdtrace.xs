@@ -93,32 +93,67 @@ setopt(SV *self, char *option, ...)
     SV           **svp;
     int           rval;
     dtrace_hdl_t *dtp;
+    char         *my_option;
     char         *value;
   CODE:
     hash = (HV *)SvRV(self);
     svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
 
-    if (! SvPOK( ST(1) )) {
-      croak("setopt: Invalid option specified");
+    if ( svp && SvOK(*svp) ) {
+      ctx = (CTX *)SvIV(*svp);
+      if (ctx->dtc_handle) {
+        dtp = ctx->dtc_handle;
+      } else {
+        croak("setopt: No valid DTrace handle!");
+      }
     }
-    if (SvPOK( ST(2) )) {
-      value = (char *)(SvPV(ST( 2 ), PL_na));
-    } else
-      value = NULL;
+
+    if (items == 1) {
+      croak("setopt: requires an option and possibly a value for it");
+    }
+    if (items >= 2) {
+      if (! SvPOK( ST(1) )) {
+        croak("setopt: Invalid option specified");
+      }
+      my_option = (char *)SvPV_nolen(ST(1));
+    }
+    if (items == 3) {
+      if (SvPOK( ST(2) )) {
+        value = (char *)(SvPV_nolen(ST(2)));
+      } else
+        croak("setopt: Invalid value specified");
+      rval = dtrace_setopt(dtp, my_option, value);
+    } else {
+      rval = dtrace_setopt(dtp, my_option, NULL);
+    }
+
+    if (rval != 0) {
+      croak("Couldn't set option '%s': %s", *option,
+             dtrace_errmsg(dtp, dtrace_errno(dtp)));
+    }
+
+
+void
+strcompile(SV *self, char *program)
+  PREINIT:
+    HV           *hash;
+    CTX          *ctx;
+    SV           **svp;
+    dtrace_hdl_t *dtp;
+  CODE:
+    hash = (HV *)SvRV(self);
+    svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
 
     if ( svp && SvOK(*svp) ) {
       ctx = (CTX *)SvIV(*svp);
       if (ctx->dtc_handle) {
         dtp = ctx->dtc_handle;
-        rval = dtrace_setopt(dtp, option, value);
-        if (rval != 0) {
-          croak("Couldn't set option '%s': %s", *option,
-                 dtrace_errmsg(dtp, dtrace_errno(dtp)));
-        }
       } else {
         croak("setopt: No valid DTrace handle!");
       }
     }
+
+
 
 void
 DESTROY(SV *self)
