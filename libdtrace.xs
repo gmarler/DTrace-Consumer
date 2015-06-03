@@ -170,6 +170,31 @@ strcompile(SV *self, char *program)
 
 
 void
+go(SV* self)
+  PREINIT:
+    HV                 *hash;
+    CTX                *ctx;
+    SV                 **svp;
+    dtrace_hdl_t       *dtp;
+  CODE:
+    hash = (HV *)SvRV(self);
+    svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
+
+    if ( svp && SvOK(*svp) ) {
+      ctx = (CTX *)SvIV(*svp);
+      if (ctx->dtc_handle) {
+        dtp = ctx->dtc_handle;
+      } else {
+        croak("go: No valid DTrace handle!");
+      }
+    }
+
+    if (dtrace_go(dtp) == -1)
+      croak("Couldn't enable tracing: %s",
+            dtrace_errmsg(dtp, dtrace_errno(dtp)));
+
+
+void
 DESTROY(SV *self)
   PREINIT:
     HV  *hash;
