@@ -193,6 +193,30 @@ go(SV* self)
       croak("Couldn't enable tracing: %s",
             dtrace_errmsg(dtp, dtrace_errno(dtp)));
 
+void
+stop(SV* self)
+  PREINIT:
+    HV                 *hash;
+    CTX                *ctx;
+    SV                 **svp;
+    dtrace_hdl_t       *dtp;
+  CODE:
+    hash = (HV *)SvRV(self);
+    svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
+
+    if ( svp && SvOK(*svp) ) {
+      ctx = (CTX *)SvIV(*svp);
+      if (ctx->dtc_handle) {
+        dtp = ctx->dtc_handle;
+      } else {
+        croak("stop: No valid DTrace handle!");
+      }
+    }
+
+    if (dtrace_stop(dtp) == -1)
+      croak("Couldn't disable tracing: %s",
+            dtrace_errmsg(dtp, dtrace_errno(dtp)));
+
 
 void
 DESTROY(SV *self)
