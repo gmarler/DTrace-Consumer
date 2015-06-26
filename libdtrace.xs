@@ -108,27 +108,38 @@ setopt(SV *self, char *option, ...)
       }
     }
 
+    /* Die early if too many arguments specified */
+    if (items > 3) {
+      croak("Too many arguments specified");
+    }
+    /*  This should never get hit - the XS level should emit a Usage: message
+     *  instead and dire on it's own */
     if (items == 1) {
       croak("setopt: requires an option and possibly a value for it");
     }
+    /* We've got at least an option specified here; we test for >= 2 because
+     * some options don't have associated values, ever, and others do */
     if (items >= 2) {
       if (! SvPOK( ST(1) )) {
-        croak("setopt: Invalid option specified");
+        croak("setopt: Option must be a string");
       }
       my_option = (char *)SvPV_nolen(ST(1));
     }
+    /* An attempt to specify a value for the option above has been made - it too
+     * must be in string format */
     if (items == 3) {
       if (SvPOK( ST(2) )) {
         value = (char *)(SvPV_nolen(ST(2)));
-      } else
-        croak("setopt: Invalid value specified");
+      } else {
+        croak("setopt: Value must be a string");
+      }
       rval = dtrace_setopt(dtp, my_option, value);
     } else {
       rval = dtrace_setopt(dtp, my_option, NULL);
     }
 
     if (rval != 0) {
-      croak("Couldn't set option '%s': %s", *option,
+      croak("Couldn't set option '%s': %s", my_option,
              dtrace_errmsg(dtp, dtrace_errno(dtp)));
     }
 
