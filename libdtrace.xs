@@ -18,6 +18,15 @@ typedef struct {
   dtrace_aggvarid_t dtc_ranges_varid;
 } CTX;
 
+/* C Function Declarations */
+const char     *action(const dtrace_recdesc_t *rec, char *buf, int size);
+boolean_t        valid(const dtrace_recdesc_t *rec);
+SV             *record(SV *self, const dtrace_recdesc_t *rec, caddr_t addr);
+int         bufhandler(const dtrace_bufdata_t *bufdata, void *arg);
+int         consume_callback_caller(const dtrace_probedata_t *data,
+                                    const dtrace_recdesc_t   *rec,
+                                    void                     *arg);
+
 /* C Functions */
 
 const char *
@@ -90,8 +99,19 @@ valid(const dtrace_recdesc_t *rec)
 }
 
 SV *
-record(const dtrace_recdesc_t *rec, caddr_t addr)
+record(SV *self, const dtrace_recdesc_t *rec, caddr_t addr)
 {
+  CTX                 *ctx;
+  SV                 **svp;
+  dtrace_hdl_t        *dtp;
+  HV                  *hash = (HV *)SvRV(self);
+
+  svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
+
+  if ( svp && SvOK(*svp) ) {
+    ctx = (CTX *)SvIV(*svp);
+  }
+
   switch (rec->dtrd_action) {
     case DTRACEACT_DIFEXPR:
       switch (rec->dtrd_size) {
@@ -116,7 +136,12 @@ record(const dtrace_recdesc_t *rec, caddr_t addr)
     case DTRACEACT_USYM:
     case DTRACEACT_UMOD:
     case DTRACEACT_UADDR:
-      dtrace_hdl_t *dtp = dtc_handle;
+      if (ctx->dtc_handle) {
+        dtp = ctx->dtc_handle;
+      } else {
+        croak("stop: No valid DTrace handle!");
+      }
+
       char buf[2048], *tick, *plus;
 
       buf[0] = '\0';
@@ -138,7 +163,7 @@ record(const dtrace_recdesc_t *rec, caddr_t addr)
          * tick -- or "<undefined>" if there is none.
          */
         if ((tick = strchr(buf, '`')) == NULL)
-          return (sv_2mortal(newSVpv("<unknown>")));
+          return (sv_2mortal(newSVpv("<unknown>",0)));
 
         *tick = '\0';
       } else if (rec->dtrd_action == DTRACEACT_SYM ||
@@ -152,7 +177,7 @@ record(const dtrace_recdesc_t *rec, caddr_t addr)
           *plus = '\0';
       }
 
-      return (sv_2mortal(newSVpv(buf)));
+      return (sv_2mortal(newSVpv(buf,0)));
   }
 
   return (sv_2mortal(newSViv(-1)));
@@ -164,6 +189,8 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
   dSP;
   dtrace_probedata_t     *data = bufdata->dtbda_probe;
   const dtrace_recdesc_t *rec  = bufdata->dtbda_recdesc;
+  SV  *probe_href;
+  int  count;
 
   /* TODO: DTrace Consumer (dtc) will be passed in as arg  */
   CTX *dtc = (CTX *)arg;
@@ -175,15 +202,43 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
   ENTER;
   SAVETMPS;
 
-  /* TODO: Call probedesc to get probe hashref  */
+  /* Call probedesc to get probe hashref  */
   HV *probe_hash;
-  /* TODO: Create a hashref for record */
+  PUSHMARK(SP);
+  XPUSHs(probe_href);
+  PUTBACK;
+
+  count = call_pv("probedesc", G_SCALAR);
+
+  SPAGAIN;
+
+  if (count != 1)
+    croak("bufhandler: failed to call probedesc!");
+
+  /* Get the result of the probedesc() call, should be a href */
+  probe_href = POPs;
+
+  /* Create a hashref for record */
   HV *rec_hash = (HV*)sv_2mortal((SV*)newHV());
   hv_store(rec_hash, "data", strlen("data"), newSVpv(bufdata->dtbda_buffered));
 
   rec_href   = sv_2mortal(newSVrv(rec_hash));
 
-  /* TODO: call the callback with array of the probe and record description */
+  /* Call the callback with the probe and record description */
+  /* push the probe href and record href on the stack */
+  PUSHMARK(SP);
+  XPUSHs(probe_href);
+  XPUSHs(rec_href);
+  PUTBACK;
+
+  count = call_sv(callback, G_DISCARD);
+
+  SPAGAIN;
+
+  /* This check shouldn't really be necessary, as we're discarding the
+     result of the callback */
+  if (count != 0)
+    croak("bufhandler: failed to call callback!");
 
   FREETMPS;
   LEAVE;
