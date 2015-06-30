@@ -161,20 +161,28 @@ record(const dtrace_recdesc_t *rec, caddr_t addr)
 int
 bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
 {
-    dtrace_probedata_t     *data = bufdata->dtbda_probe;
-    const dtrace_recdesc_t *rec  = bufdata->dtbda_recdesc;
+  dSP;
+  dtrace_probedata_t     *data = bufdata->dtbda_probe;
+  const dtrace_recdesc_t *rec  = bufdata->dtbda_recdesc;
 
-    /* TODO: DTrace Consumer (dtc) will be passed in as arg  */
+  /* TODO: DTrace Consumer (dtc) will be passed in as arg  */
+  CTX *dtc = (CTX *)arg;
 
-    if (rec == NULL || rec->dtrd_action != DTRACEACT_PRINTF)
-      return( DTRACE_HANDLE_OK );
 
-    /* TODO: Create a hashref for probe  */
-    /* TODO: Create a hashref for record */
-
-    /* TODO: call the callback with argv (the probe/record description) */
-
+  if (rec == NULL || rec->dtrd_action != DTRACEACT_PRINTF)
     return( DTRACE_HANDLE_OK );
+
+  /* TODO: Call probedesc to get probe hashref  */
+  HV *probe_hash;
+  /* TODO: Create a hashref for record */
+  HV *rec_hash = (HV*)sv_2mortal((SV*)newHV());
+  hv_store(rec_hash, "data", strlen("data"), newSVpv(bufdata->dtbda_buffered));
+
+  rec_href   = sv_2mortal(newSVrv(rec_hash));
+
+  /* TODO: call the callback with array of the probe and record description */
+
+  return( DTRACE_HANDLE_OK );
 }
 
 int
@@ -220,7 +228,7 @@ consume_callback_caller(const dtrace_probedata_t *data,
   }
 
   rec_hash = (HV*)sv_2mortal((SV*)newHV());
-    
+
   hv_store(rec_hash, "data", strlen("data"), newSVpv(dtc->record(rec, data->dtpda_data)));
  
   rec_href   = sv_2mortal(newSVrv(rec_hash));
