@@ -281,11 +281,9 @@ new( const char *class )
     (void)dtrace_setopt(dtp, "bufsize", "512k");
     (void)dtrace_setopt(dtp, "aggsize", "512k");
 
-    /* TODO: Add context!
-    if ((dtrace_handle_buffered(dtp, bufhandler, context)) == -1)
+    if ((dtrace_handle_buffered(dtp, bufhandler, ctx)) == -1)
       croak("dtrace_handle_buffered failed: %s",
             dtrace_errmsg(dtp,dtrace_errno(dtp)));
-    */
 
     /* Store the pointer to the instance context struct in the hash
      * It's private, so if a user plays with it, everything breaks.
