@@ -172,6 +172,9 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
   if (rec == NULL || rec->dtrd_action != DTRACEACT_PRINTF)
     return( DTRACE_HANDLE_OK );
 
+  ENTER;
+  SAVETMPS;
+
   /* TODO: Call probedesc to get probe hashref  */
   HV *probe_hash;
   /* TODO: Create a hashref for record */
@@ -181,6 +184,9 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
   rec_href   = sv_2mortal(newSVrv(rec_hash));
 
   /* TODO: call the callback with array of the probe and record description */
+
+  FREETMPS;
+  LEAVE;
 
   return( DTRACE_HANDLE_OK );
 }
