@@ -7,18 +7,27 @@
 
 #include <dtrace.h>
 
+#ifndef B_TRUE
+#define B_TRUE 1
+#endif
+#ifndef B_FALSE
+#define B_FALSE 0
+#endif
+
 /* Context */
 typedef struct {
   dtrace_hdl_t  *dtc_handle;
   /* dtc_templ ??? */
   /* dtc_args  ??? */
   SV *           dtc_callback;
-  int            dtc_error;
+  SV *           dtc_error;     /* This is a string / PV */
   /* dtc_ranges    */
   dtrace_aggvarid_t dtc_ranges_varid;
 } CTX;
 
-/* C Function Declarations */
+/* Pre-XS C Function Declarations */
+SV              *error(const char *fmt, ...);
+HV          *probedesc(const dtrace_probedesc_t *pd);
 const char     *action(const dtrace_recdesc_t *rec, char *buf, int size);
 boolean_t        valid(const dtrace_recdesc_t *rec);
 SV             *record(SV *self, const dtrace_recdesc_t *rec, caddr_t addr);
@@ -28,6 +37,45 @@ int         consume_callback_caller(const dtrace_probedata_t *data,
                                     void                     *arg);
 
 /* C Functions */
+
+SV *
+error(const char *fmt, ...)
+{
+  char buf[1024], buf2[1024];
+  char *err = buf;
+  va_list ap;
+
+  va_start(ap, fmt);
+  (void) vsnprintf(buf, sizeof (buf), fmt, ap);
+
+  if (buf[strlen(buf) - 1] != '\n') {
+    /*
+     * If our error doesn't end in a newline, we'll append the strerror()
+     * of errno.
+     */
+    (void) snprintf(err = buf2, sizeof (buf2), "%s: %s",
+                    buf, strerror(errno));
+  } else {
+    buf[strlen(buf) - 1] = '\0';
+  }
+
+  return(sv_2mortal(newSVpv(err,0)));
+}
+
+HV *
+probedesc(const dtrace_probedesc_t *pd)
+{
+  HV *probe;
+
+  probe = (HV*)sv_2mortal((SV*)newHV());
+
+  hv_store(probe, "provider", strlen("provider"), newSVpv(pd->dtpd_provider, 0), 0);
+  hv_store(probe, "module",   strlen("module"),   newSVpv(pd->dtpd_mod, 0), 0);
+  hv_store(probe, "function", strlen("function"), newSVpv(pd->dtpd_func, 0), 0);
+  hv_store(probe, "name",     strlen("name"),     newSVpv(pd->dtpd_name, 0), 0);
+
+  return(probe);
+}
 
 const char *
 action(const dtrace_recdesc_t *rec, char *buf, int size)
@@ -189,12 +237,13 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
   dSP;
   dtrace_probedata_t     *data = bufdata->dtbda_probe;
   const dtrace_recdesc_t *rec  = bufdata->dtbda_recdesc;
+  HV  *probe_hash;
   SV  *probe_href;
   int  count;
 
   /* TODO: DTrace Consumer (dtc) will be passed in as arg  */
   CTX *dtc = (CTX *)arg;
-
+  SV  *callback = dtc->dtc_callback;
 
   if (rec == NULL || rec->dtrd_action != DTRACEACT_PRINTF)
     return( DTRACE_HANDLE_OK );
@@ -202,27 +251,16 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
   ENTER;
   SAVETMPS;
 
-  /* Call probedesc to get probe hashref  */
-  HV *probe_hash;
-  PUSHMARK(SP);
-  XPUSHs(probe_href);
-  PUTBACK;
-
-  count = call_pv("probedesc", G_SCALAR);
-
-  SPAGAIN;
-
-  if (count != 1)
-    croak("bufhandler: failed to call probedesc!");
+  probe_hash = probedesc(data->dtpda_pdesc);
 
   /* Get the result of the probedesc() call, should be a href */
-  probe_href = POPs;
+  probe_href = newRV_noinc( (SV *)probe_hash);
 
   /* Create a hashref for record */
   HV *rec_hash = (HV*)sv_2mortal((SV*)newHV());
-  hv_store(rec_hash, "data", strlen("data"), newSVpv(bufdata->dtbda_buffered,0));
+  hv_store(rec_hash, "data", strlen("data"), newSVpv(bufdata->dtbda_buffered,0), 0);
 
-  rec_href   = sv_2mortal(newSVrv(rec_hash));
+  SV *rec_href   = newRV_noinc( (SV *)rec_hash );
 
   /* Call the callback with the probe and record description */
   /* push the probe href and record href on the stack */
@@ -253,52 +291,92 @@ consume_callback_caller(const dtrace_probedata_t *data,
 {
   dSP;
   int count;
+  HV  *probe_hash;
   SV  *probe_href;
-  SV  *record_href;
-  SV  *callback = ((CTX *)arg)->dtc_callback;
-  CTX *dtc      = (CTX *)arg;
+  HV  *rec_hash;
+  SV  *rec_href;
+  CTX *ctx;
+  SV  *callback;
+  HV  *self_hash = (HV *)SvRV((SV *)arg);
+  SV  **svp      = hv_fetchs( self_hash, "_my_instance_ctx", FALSE );
+
+  if ( svp && SvOK(*svp) ) {
+    ctx = (CTX *)SvIV(*svp);
+    /* TODO: We don't need the dtc_handler here - remove it */
+    /*
+    if (ctx->dtc_handle) {
+      dtp = ctx->dtc_handle;
+    } else {
+      croak("consume_callback_caller: No valid DTrace handle!");
+    }
+    */
+  }
+  /* Extract the callback */
+  callback = ctx->dtc_callback;
 
   ENTER;
   SAVETMPS;
 
+  /* TODO: Is this even used anywhere?  We use the same thing in the
+           call to probedesc() below, so there may be a way to factor this
+           away. */
   dtrace_probedesc_t *pd = data->dtpda_pdesc;
 
-  /*  HV *probe_hash = dtc->probedesc(data->dtpda_pdesc); */
-  HV *probe_hash = dtc->probedesc(data->dtpda_pdesc);
-  HV *rec_hash;
+  /* Call probedesc to get probe hashref  */
+  probe_hash = probedesc(data->dtpda_pdesc);
 
-  probe_href = sv_2mortal(newSVrv(probe_hash));
+  /* Get the result of the probedesc() call, should be a href */
+  probe_href = newRV_noinc( (SV *)probe_hash);
 
-  /* TODO: Handle case where the rec is NULL */
+  /* Handle case where the rec is NULL */
   if (rec == NULL) {
+    /* Call the callback with *just* the probe description */
+    PUSHMARK(SP);
+    XPUSHs(probe_href);
+    PUTBACK;
+
+    count = call_sv(callback, G_DISCARD);
+
+    SPAGAIN;
+
+    /* This check shouldn't really be necessary, as we're discarding the
+       result of the callback */
+    if (count != 0)
+      croak("bufhandler: failed to call callback!");
+
+    FREETMPS;
+    LEAVE;
+  
+    return(DTRACE_CONSUME_NEXT);
   }
 
-  if (!dtc->valid(rec)) {
+  if (!valid(rec)) {
     char errbuf[256];
 
     /* If this is a printf(), we defer to the bufhandler. */
     if (rec->dtrd_action == DTRACEACT_PRINTF)
       return (DTRACE_CONSUME_THIS);
 
-    dtc->dtc_error =
-      dtc->error("unsupported action %s in record for %s:%s:%s:%s\n",
-                 dtc->action(rec, errbuf, sizeof(errbuf)),
+    ctx->dtc_error =
+      error("unsupported action %s in record for %s:%s:%s:%s\n",
+                 action(rec, errbuf, sizeof(errbuf)),
                  pd->dtpd_provider, pd->dtpd_mod,
                  pd->dtpd_func, pd->dtpd_name);
     return (DTRACE_CONSUME_ABORT);
   }
 
-  rec_hash = (HV*)sv_2mortal((SV*)newHV());
+  rec_hash = (HV *)(sv_2mortal((SV*)newHV()));
 
-  hv_store(rec_hash, "data", strlen("data"), newSVpv(dtc->record(rec, data->dtpda_data)));
+  hv_store(rec_hash, "data", strlen("data"),
+           record((SV *)arg, rec, data->dtpda_data), 0);
  
-  rec_href   = sv_2mortal(newSVrv(rec_hash));
+  rec_href   = sv_2mortal(newRV_noinc((SV *)rec_hash));
 
   PUSHMARK(SP);
-  /* TODO: push the probe_href and record_href onto the stack for the callback
-   *       to pick up */
+  /* push the probe_href and record_href onto the stack for the callback
+   * to pick up */
   XPUSHs(probe_href);
-  XPUSHs(desc_href);
+  XPUSHs(rec_href);
   PUTBACK;
 
   count = call_sv(callback, G_SCALAR);
@@ -523,7 +601,7 @@ stop(SV* self)
             dtrace_errmsg(dtp, dtrace_errno(dtp)));
 
 
-int
+SV *
 consume(SV *self, SV *callback )
   PREINIT:
     HV                  *hash;
@@ -553,25 +631,15 @@ consume(SV *self, SV *callback )
       SvSetSV(ctx->dtc_callback, callback);
     }
 
-    status = dtrace_work(dtp, NULL, NULL, consume_callback_caller, ctx);
+    status = dtrace_work(dtp, NULL, NULL, consume_callback_caller, (void *)self);
 
-    if (status == -1 && !ctx->dtc_error) {
-      return(ctx->dtc_error);
+    /* TODO: Need to make sure ctx->dtc_error is *defined* */
+    if (status == -1 && ctx->dtc_error) {
+      RETVAL = ctx->dtc_error;
+    } else {
+      /* Need to return undef in this case */
+      XSRETURN_UNDEF;
     }
-
-HV *
-probedesc(const dtrace_probedesc_t *pd)
-  PREINIT:
-    HV *probe;
-  CODE:
-    probe = (HV*)sv_2mortal((SV*)newHV());
-
-    hv_store(probe, "provider", strlen("provider"), newSVpv(pd->dtpd_provider));
-    hv_store(probe, "module",   strlen("module"),   newSVpv(pd->dtpd_mod));
-    hv_store(probe, "function", strlen("function"), newSVpv(pd->dtpd_func));
-    hv_store(probe, "name",     strlen("name"),     newSVpv(pd->dtpd_name));
-
-    RETVAL = probe;
   OUTPUT: RETVAL
 
 void
@@ -590,4 +658,5 @@ DESTROY(SV *self)
         dtrace_close(ctx->dtc_handle);
       free(ctx);
     }
+
 
