@@ -220,7 +220,7 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
 
   /* Create a hashref for record */
   HV *rec_hash = (HV*)sv_2mortal((SV*)newHV());
-  hv_store(rec_hash, "data", strlen("data"), newSVpv(bufdata->dtbda_buffered));
+  hv_store(rec_hash, "data", strlen("data"), newSVpv(bufdata->dtbda_buffered,0));
 
   rec_href   = sv_2mortal(newSVrv(rec_hash));
 
