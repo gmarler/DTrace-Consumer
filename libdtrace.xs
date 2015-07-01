@@ -67,7 +67,7 @@ probedesc(const dtrace_probedesc_t *pd)
 {
   HV *probe;
 
-  probe = (HV*)sv_2mortal((SV*)newHV());
+  probe = newHV();
 
   hv_store(probe, "provider", strlen("provider"), newSVpv(pd->dtpd_provider, 0), 0);
   hv_store(probe, "module",   strlen("module"),   newSVpv(pd->dtpd_mod, 0), 0);
@@ -257,7 +257,7 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
   probe_href = newRV_noinc( (SV *)probe_hash);
 
   /* Create a hashref for record */
-  HV *rec_hash = (HV*)sv_2mortal((SV*)newHV());
+  HV *rec_hash = newHV();
   hv_store(rec_hash, "data", strlen("data"), newSVpv(bufdata->dtbda_buffered,0), 0);
 
   SV *rec_href   = newRV_noinc( (SV *)rec_hash );
@@ -365,7 +365,7 @@ consume_callback_caller(const dtrace_probedata_t *data,
     return (DTRACE_CONSUME_ABORT);
   }
 
-  rec_hash = (HV *)(sv_2mortal((SV*)newHV()));
+  rec_hash = newHV();
 
   hv_store(rec_hash, "data", strlen("data"),
            record((SV *)arg, rec, data->dtpda_data), 0);
