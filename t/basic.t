@@ -5,6 +5,9 @@ use feature qw(say);
 
 use Test::Most;
 use Data::Dumper;
+use IO::Async::Timer::Periodic;
+use IO::Async::Loop;
+
 
 use_ok( 'Devel::libdtrace ' );
 
@@ -153,5 +156,37 @@ lives_ok( sub { $libdtrace->go(); },
 
 my ($secs, $val);
 
+my $loop = IO::Async::Loop->new;
+
+my $iterations;
+my $timer;
+$timer = IO::Async::Timer::Periodic->new(
+   interval => 1,
+ 
+   on_tick => sub {
+     $iterations++;
+
+     $libdtrace->consume(
+       sub {
+         my ($probe, $rec) = @_;
+
+         if (!$rec) { return; }
+
+         if (($val = $rec->{data}) > 5) {
+           # Stop the timer
+           $loop->remove( $timer );
+           $loop->loop_stop();
+         }
+         diag Dumper( $rec );
+       }
+     );
+   },
+);
+ 
+$timer->start;
+ 
+$loop->add( $timer );
+ 
+$loop->run;
 
 done_testing();
