@@ -370,7 +370,7 @@ consume_callback_caller(const dtrace_probedata_t *data,
   hv_store(rec_hash, "data", strlen("data"),
            record((SV *)arg, rec, data->dtpda_data), 0);
  
-  rec_href   = sv_2mortal(newRV_noinc((SV *)rec_hash));
+  rec_href   = newRV_noinc((SV *)rec_hash);
 
   PUSHMARK(SP);
   /* push the probe_href and record_href onto the stack for the callback
