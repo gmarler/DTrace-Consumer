@@ -19,10 +19,10 @@ typedef struct {
   dtrace_hdl_t  *dtc_handle;
   /* dtc_templ ??? */
   /* dtc_args  ??? */
-  SV *           dtc_callback;
-  SV *           dtc_error;     /* This is a string / PV */
-  /* dtc_ranges    */
-  dtrace_aggvarid_t dtc_ranges_varid;
+  SV                *dtc_callback;
+  SV                *dtc_error;     /* This is a string / PV */
+  AV                *dtc_ranges;
+  dtrace_aggvarid_t  dtc_ranges_varid;
 } CTX;
 
 /* Pre-XS C Function Declarations */
@@ -31,10 +31,16 @@ HV          *probedesc(const dtrace_probedesc_t *pd);
 const char     *action(const dtrace_recdesc_t *rec, char *buf, int size);
 boolean_t        valid(const dtrace_recdesc_t *rec);
 SV             *record(SV *self, const dtrace_recdesc_t *rec, caddr_t addr);
-int         bufhandler(const dtrace_bufdata_t *bufdata, void *arg);
+int         bufhandler(const dtrace_bufdata_t *bufdata, void *object);
 int         consume_callback_caller(const dtrace_probedata_t *data,
                                     const dtrace_recdesc_t   *rec,
-                                    void                     *arg);
+                                    void                     *object);
+AV *     ranges_cached(dtrace_aggvarid_t varid, void *object);
+AV *      ranges_cache(dtrace_aggvarid_t varid, AV *ranges, void *object);
+AV *   ranges_quantize(dtrace_aggvarid_t varid, void *object);
+AV *  ranges_lquantize(dtrace_aggvarid_t varid, uint64_t, void *object);
+AV * ranges_llquantize(dtrace_aggvarid_t varid, uint64_t, int, void *object);
+int  aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object);
 
 /* C Functions */
 
@@ -67,7 +73,7 @@ probedesc(const dtrace_probedesc_t *pd)
 {
   HV *probe;
 
-  probe = (HV*)sv_2mortal((SV*)newHV());
+  probe = newHV();
 
   hv_store(probe, "provider", strlen("provider"), newSVpv(pd->dtpd_provider, 0), 0);
   hv_store(probe, "module",   strlen("module"),   newSVpv(pd->dtpd_mod, 0), 0);
@@ -164,19 +170,19 @@ record(SV *self, const dtrace_recdesc_t *rec, caddr_t addr)
     case DTRACEACT_DIFEXPR:
       switch (rec->dtrd_size) {
         case sizeof(uint64_t):
-          return (sv_2mortal(newSViv(*((int64_t *)addr))));
+          return (newSViv(*((int64_t *)addr)));
 
         case sizeof(uint32_t):
-          return (sv_2mortal(newSViv(*((int32_t *)addr))));
+          return (newSViv(*((int32_t *)addr)));
 
         case sizeof(uint16_t):
-          return (sv_2mortal(newSViv(*((int16_t *)addr))));
+          return (newSViv(*((int16_t *)addr)));
 
         case sizeof(uint8_t):
-          return (sv_2mortal(newSViv(*((int8_t *)addr))));
+          return (newSViv(*((int8_t *)addr)));
 
         default:
-          return (sv_2mortal(newSVpv((const char *)addr,0)));
+          return (newSVpv((const char *)addr,0));
       }
 
     case DTRACEACT_SYM:
@@ -211,7 +217,7 @@ record(SV *self, const dtrace_recdesc_t *rec, caddr_t addr)
          * tick -- or "<undefined>" if there is none.
          */
         if ((tick = strchr(buf, '`')) == NULL)
-          return (sv_2mortal(newSVpv("<unknown>",0)));
+          return (newSVpv("<unknown>",0));
 
         *tick = '\0';
       } else if (rec->dtrd_action == DTRACEACT_SYM ||
@@ -225,14 +231,14 @@ record(SV *self, const dtrace_recdesc_t *rec, caddr_t addr)
           *plus = '\0';
       }
 
-      return (sv_2mortal(newSVpv(buf,0)));
+      return (newSVpv(buf,0));
   }
 
-  return (sv_2mortal(newSViv(-1)));
+  return (newSViv(-1));
 }
 
 int
-bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
+bufhandler(const dtrace_bufdata_t *bufdata, void *object)
 {
   dSP;
   dtrace_probedata_t     *data = bufdata->dtbda_probe;
@@ -241,8 +247,8 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
   SV  *probe_href;
   int  count;
 
-  /* TODO: DTrace Consumer (dtc) will be passed in as arg  */
-  CTX *dtc = (CTX *)arg;
+  /* DTrace Consumer (dtc) will be passed in as 'object'  */
+  CTX *dtc = (CTX *)object;
   SV  *callback = dtc->dtc_callback;
 
   if (rec == NULL || rec->dtrd_action != DTRACEACT_PRINTF)
@@ -257,7 +263,7 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
   probe_href = newRV_noinc( (SV *)probe_hash);
 
   /* Create a hashref for record */
-  HV *rec_hash = (HV*)sv_2mortal((SV*)newHV());
+  HV *rec_hash = newHV();
   hv_store(rec_hash, "data", strlen("data"), newSVpv(bufdata->dtbda_buffered,0), 0);
 
   SV *rec_href   = newRV_noinc( (SV *)rec_hash );
@@ -287,7 +293,7 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
 int
 consume_callback_caller(const dtrace_probedata_t *data,
                         const dtrace_recdesc_t   *rec,
-                        void                     *arg)
+                        void                     *object)
 {
   dSP;
   int count;
@@ -297,7 +303,7 @@ consume_callback_caller(const dtrace_probedata_t *data,
   SV  *rec_href;
   CTX *ctx;
   SV  *callback;
-  HV  *self_hash = (HV *)SvRV((SV *)arg);
+  HV  *self_hash = (HV *)SvRV((SV *)object);
   SV  **svp      = hv_fetchs( self_hash, "_my_instance_ctx", FALSE );
 
   if ( svp && SvOK(*svp) ) {
@@ -342,7 +348,7 @@ consume_callback_caller(const dtrace_probedata_t *data,
     /* This check shouldn't really be necessary, as we're discarding the
        result of the callback */
     if (count != 0)
-      croak("bufhandler: failed to call callback!");
+      croak("consume_callback_caller: failed to call callback!");
 
     FREETMPS;
     LEAVE;
@@ -365,12 +371,12 @@ consume_callback_caller(const dtrace_probedata_t *data,
     return (DTRACE_CONSUME_ABORT);
   }
 
-  rec_hash = (HV *)(sv_2mortal((SV*)newHV()));
+  rec_hash = newHV();
 
   hv_store(rec_hash, "data", strlen("data"),
-           record((SV *)arg, rec, data->dtpda_data), 0);
+           record((SV *)object, rec, data->dtpda_data), 0);
  
-  rec_href   = sv_2mortal(newRV_noinc((SV *)rec_hash));
+  rec_href   = newRV_noinc((SV *)rec_hash);
 
   PUSHMARK(SP);
   /* push the probe_href and record_href onto the stack for the callback
@@ -394,6 +400,465 @@ consume_callback_caller(const dtrace_probedata_t *data,
   return(DTRACE_CONSUME_THIS);
 }
 
+/*
+ * Caching the quantized ranges improves performance substantially if the
+ * aggregations have many disjoint keys.
+ * At present we only cache a single aggregation variable.
+ * Programs that use more than one aggregation variable may see significant
+ * degredation in performance.
+ * TODO: Allow the cache to operate on multiple aggregation variables
+ */
+AV *
+ranges_cached(dtrace_aggvarid_t varid, void *object)
+{
+  CTX *ctx;
+
+  HV  *self_hash = (HV *)SvRV((SV *)object);
+  SV  **svp      = hv_fetchs( self_hash, "_my_instance_ctx", FALSE );
+
+  if ( svp && SvOK(*svp) ) {
+    ctx = (CTX *)SvIV(*svp);
+  } else {
+    croak("ranges_cached: No DTrace Consumer context!");
+  }
+
+  if (varid == ctx->dtc_ranges_varid)
+    return (ctx->dtc_ranges);
+
+  /* If we fall through to here, the aggregation variable is not cached */
+  return (NULL);
+}
+
+AV *
+ranges_cache(dtrace_aggvarid_t varid, AV *ranges, void *object)
+{
+  CTX *ctx;
+
+  HV  *self_hash = (HV *)SvRV((SV *)object);
+  SV  **svp      = hv_fetchs( self_hash, "_my_instance_ctx", FALSE );
+
+  if ( svp && SvOK(*svp) ) {
+    ctx = (CTX *)SvIV(*svp);
+  } else {
+    croak("ranges_cache: No DTrace Consumer context!");
+  }
+
+  /* Free existing context/object instance specific dtc_ranges */
+  if (ctx->dtc_ranges != NULL) {
+    av_undef(ctx->dtc_ranges);
+  }
+
+  ctx->dtc_ranges       = ranges;
+  ctx->dtc_ranges_varid = varid;
+
+  return (ranges);
+}
+
+AV *
+ranges_quantize(dtrace_aggvarid_t varid, void *object)
+{
+  int64_t   min, max;
+  AV       *ranges;
+  int       i;
+  CTX      *ctx;
+
+  HV  *self_hash = (HV *)SvRV((SV *)object);
+  SV  **svp      = hv_fetchs( self_hash, "_my_instance_ctx", FALSE );
+
+  if ( svp && SvOK(*svp) ) {
+    ctx = (CTX *)SvIV(*svp);
+  } else {
+    croak("ranges_quantize: No DTrace Consumer context!");
+  }
+
+  /* Short circuit this, if we've cached this data already */
+  if ((ranges = ranges_cached(varid,object)) != NULL)
+    return (ranges);
+
+  ranges = newAV();
+  /* Extend the array to the size we need for our buckets */
+  av_fill(ranges, DTRACE_QUANTIZE_NBUCKETS - 1);
+
+  for (i = 0; i < DTRACE_QUANTIZE_NBUCKETS; i++) {
+    AV *temp;
+    SV *temp_aref;
+
+    if (i < DTRACE_QUANTIZE_ZEROBUCKET) {
+      /*
+       * If we're less than the zero bucket, our range extends from
+       * negative infinity through to the beginning of our zeroth
+       * bucket.
+       */ 
+      min = i > 0 ? DTRACE_QUANTIZE_BUCKETVAL(i - 1) + 1 : INT64_MIN;
+      max = DTRACE_QUANTIZE_BUCKETVAL(i);
+    } else if (i == DTRACE_QUANTIZE_ZEROBUCKET) {
+      min = max = 0;
+    } else {
+      min = DTRACE_QUANTIZE_BUCKETVAL(i);
+      max = i < DTRACE_QUANTIZE_NBUCKETS - 1 ?
+              DTRACE_QUANTIZE_BUCKETVAL(i + 1) - 1 :
+              INT64_MAX;
+    }
+
+    temp = newAV();
+    av_push( temp, newSViv(min) );
+    av_push( temp, newSViv(max) );
+    /* Take a reference to the array we just created */
+    temp_aref = newRV_noinc( (SV *)temp );
+
+    /* And push it on the ranges array, presumably at the same index as 'i' */
+    av_push( ranges, temp_aref );
+  }
+
+  return (ranges_cache(varid, ranges, object));
+}
+
+AV *
+ranges_lquantize(dtrace_aggvarid_t varid, const uint64_t arg, void *object)
+{
+  int64_t   min, max;
+  AV       *ranges;
+  int32_t   base;
+  uint16_t  step, levels;
+  int       i;
+  CTX      *ctx;
+
+  HV  *self_hash = (HV *)SvRV((SV *)object);
+  SV  **svp      = hv_fetchs( self_hash, "_my_instance_ctx", FALSE );
+
+  if ( svp && SvOK(*svp) ) {
+    ctx = (CTX *)SvIV(*svp);
+  } else {
+    croak("ranges_lquantize: No DTrace Consumer context!");
+  }
+
+  /* Short circuit this, if we've cached this data already */
+  if ((ranges = ranges_cached(varid,object)) != NULL)
+    return (ranges);
+
+  base   = DTRACE_LQUANTIZE_BASE(arg);
+  step   = DTRACE_LQUANTIZE_STEP(arg);
+  levels = DTRACE_LQUANTIZE_LEVELS(arg);
+
+  ranges = newAV();
+  /* Extend the array to the size we need for lquantize */
+  av_fill(ranges, levels + 2 - 1);
+
+  for (i = 0; i < levels + 1; i++) {
+    AV *temp;
+    SV *temp_aref;
+
+    min = i == 0     ? INT64_MIN : base + ((i - 1) * step);
+    max = i > levels ? INT64_MAX : base + (i * step) - 1;
+
+    temp = newAV();
+    av_push( temp, newSViv(min) );
+    av_push( temp, newSViv(max) );
+    /* Take a reference to the array we just created */
+    temp_aref = newRV_noinc( (SV *)temp );
+
+    /* And push it on the ranges array, presumably at the same index as 'i' */
+    av_push( ranges, temp_aref );
+  }
+
+  return (ranges_cache(varid, ranges, object));
+}
+
+AV *
+ranges_llquantize(dtrace_aggvarid_t varid, const uint64_t arg, int nbuckets,
+                  void *object)
+{
+  int64_t   value = 1, next, step;
+  AV       *ranges;
+  int       bucket = 0, order;
+  uint16_t  factor, low, high, nsteps;
+
+  CTX      *ctx;
+
+  HV  *self_hash = (HV *)SvRV((SV *)object);
+  SV  **svp      = hv_fetchs( self_hash, "_my_instance_ctx", FALSE );
+
+  if ( svp && SvOK(*svp) ) {
+    ctx = (CTX *)SvIV(*svp);
+  } else {
+    croak("ranges_lquantize: No DTrace Consumer context!");
+  }
+
+  /* Short circuit this, if we've cached this data already */
+  if ((ranges = ranges_cached(varid,object)) != NULL)
+    return (ranges);
+
+  factor = DTRACE_LLQUANTIZE_FACTOR(arg);
+  low    = DTRACE_LLQUANTIZE_LMAG(arg);   /* was ..._LOW */
+  high   = DTRACE_LLQUANTIZE_HMAG(arg);   /* was ..._HIGH */
+  nsteps = DTRACE_LLQUANTIZE_STEPS(arg);  /* was ..._NSTEP */
+
+  ranges = newAV();
+  /* Extend the array to the size we need for llquantize */
+  av_fill(ranges, nbuckets - 1);
+
+  for (order = 0; order < low; order++)
+    value *= factor;
+
+  AV *temp;
+  SV *temp_aref;
+
+  temp = newAV();
+  av_push( temp, newSViv(0) );
+  av_push( temp, newSViv(value - 1) );
+
+  /* Take a reference to the array we just created */
+  temp_aref = newRV_noinc( (SV *)temp );
+
+  /* And insert it into ranges array, at the right bucket */
+  if (av_store(ranges, bucket, temp_aref) == 0) {
+    SvREFCNT_dec(temp_aref);
+    warn("ranges_llquantize: Failed to store first bucket in range");
+  }
+
+  bucket++;
+
+  next = value * factor;
+  step = next > nsteps ? next / nsteps : 1;
+
+  while (order <= high) {
+    temp = newAV();
+    av_push( temp, newSViv(value) );
+    av_push( temp, newSViv(value + step - 1) );
+
+    /* Take a reference to the array we just created */
+    temp_aref = newRV_noinc( (SV *)temp );
+
+    /* And insert it into ranges array, at the right bucket */
+    if (av_store(ranges, bucket, temp_aref) == 0) {
+      SvREFCNT_dec(temp_aref);
+      warn("ranges_llquantize: Failed to store intermediate buckets in range");
+    }
+
+    bucket++;
+
+    if ((value += step) != next)
+      continue;
+
+    next = value * factor;
+    step = next > nsteps ? next / nsteps : 1;
+    order++;
+  }
+
+  temp = newAV();
+  av_push( temp, newSViv(value) );
+  av_push( temp, newSViv(INT64_MAX) );
+
+  /* Take a reference to the array we just created */
+  temp_aref = newRV_noinc( (SV *)temp );
+
+  /* And insert it into ranges array, at the right bucket */
+  if (av_store(ranges, bucket, temp_aref) == 0) {
+    SvREFCNT_dec(temp_aref);
+    warn("ranges_llquantize: Failed to store last bucket in range");
+  }
+
+  if (bucket + 1 != nbuckets)
+    croak("ranges_llquantize: bucket count off");
+  
+  return (ranges_cache(varid, ranges, object));
+}
+
+int
+aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
+{
+  dSP;
+  CTX *ctx;
+  HV  *self_hash = (HV *)SvRV((SV *)object);
+  SV  **svp      = hv_fetchs( self_hash, "_my_instance_ctx", FALSE );
+  if ( svp && SvOK(*svp) ) {
+    ctx = (CTX *)SvIV(*svp);
+  }
+  
+  /* Extract the callback */
+  SV  *callback  = ctx->dtc_callback;
+
+  const dtrace_aggdesc_t *aggdesc = agg->dtada_desc;
+  const dtrace_recdesc_t *aggrec;
+  SV  *id;
+  SV  *val;
+  AV  *key;
+  char errbuf[256];
+  int  i;
+  int  count;
+
+  if ( svp && SvOK(*svp) ) {
+    ctx = (CTX *)SvIV(*svp);
+  }
+
+  ENTER;
+  SAVETMPS;
+
+  /* Put the id in an SV at this point, after the SAVETMPS */
+  id = newSViv(aggdesc->dtagd_varid);
+
+  /*
+   * We expect to have both a variable ID and an aggregation value here;
+   * if we have fewer than two records, something is deeply wrong.
+   */
+  if (aggdesc->dtagd_nrecs < 2)
+    croak("aggwalk_callback_caller: Less than 2 agg records!");
+
+  /* Create a Perl array to hold the keys */
+  key = newAV();
+  av_fill( key, aggdesc->dtagd_nrecs - 2 - 1);
+
+  for (i = 1; i < aggdesc->dtagd_nrecs - 1; i++) {
+    const dtrace_recdesc_t *rec = &aggdesc->dtagd_rec[i];
+    caddr_t addr = agg->dtada_data + rec->dtrd_offset;
+
+    if (!valid(rec)) {
+      /* TODO: Cannot just croak here - need to use error() call
+               Guess that needs to be non-fatal too...
+       */
+      croak("Unsupported action %s as key #%d in aggregation \"%s\"\n",
+            action(rec, errbuf, sizeof(errbuf)), i, aggdesc->dtagd_name);
+      return (DTRACE_AGGWALK_ERROR);
+    }
+
+    SV *key_record = record(object, rec, addr);
+    if (av_store(key, i - 1, key_record) == 0) {
+      SvREFCNT_dec(key_record);
+      warn("aggwalk_callback_caller: failed to store key record");
+    }
+  }
+
+  aggrec = &aggdesc->dtagd_rec[aggdesc->dtagd_nrecs - 1];
+
+  switch (aggrec->dtrd_action) {
+    case DTRACEAGG_COUNT:
+    case DTRACEAGG_MIN:
+    case DTRACEAGG_MAX:
+    case DTRACEAGG_SUM:
+      {
+        caddr_t addr = agg->dtada_data + aggrec->dtrd_offset;
+
+        assert(aggrec->dtrd_size == sizeof (uint64_t));
+        val = newSViv(*((int64_t *)addr));
+        break;
+      }
+
+    case DTRACEAGG_AVG:
+      {
+        const int64_t *data =
+          (int64_t *)(agg->dtada_data + aggrec->dtrd_offset);
+
+        assert(aggrec->dtrd_size == sizeof (uint64_t) * 2);
+        val = newSVnv(data[1] / (double)data[0]);
+        break;
+      }
+
+    case DTRACEAGG_QUANTIZE:
+      {
+        AV *quantize = newAV();
+        const int64_t *data =
+          (int64_t *)(agg->dtada_data + aggrec->dtrd_offset);
+        AV *ranges, *datum;
+        SV *temp_aref;
+        int i, j = 0;
+
+        ranges = ranges_quantize(aggdesc->dtagd_varid, object);
+
+        for (i = 0; i < DTRACE_QUANTIZE_NBUCKETS; i++) {
+          if (!data[i])
+            continue;
+
+          datum = newAV();
+          /* TODO: Check that av_fetch() returns non-NULL before dereferencing it */
+          av_push( datum, *(av_fetch(ranges, i, 0 )) );
+          av_push( datum, newSViv(data[i]) );
+
+          /* Take a reference to datum and store in quantize */
+
+          temp_aref = newRV_noinc( (SV *)datum );
+
+          if (av_store(quantize, j++, temp_aref) == 0) {
+            SvREFCNT_dec(temp_aref);
+            warn("Failed to store quantize data");
+          }
+        }
+
+        val = (SV *)quantize;
+        break;
+      }
+
+    case DTRACEAGG_LQUANTIZE:
+    case DTRACEAGG_LLQUANTIZE:
+      {
+        AV *lquantize = newAV();
+        const int64_t *data =
+          (int64_t *)(agg->dtada_data + aggrec->dtrd_offset);
+        AV *ranges, *datum;
+        SV *temp_aref;
+        int i, j = 0;
+
+        uint64_t arg = *data++;
+        int levels = (aggrec->dtrd_size / sizeof (uint64_t)) - 1;
+
+        ranges = (aggrec->dtrd_action == DTRACEAGG_LQUANTIZE ?
+            ranges_lquantize(aggdesc->dtagd_varid, arg, object) :
+            ranges_llquantize(aggdesc->dtagd_varid, arg, levels, object));
+
+        for (i = 0; i < levels; i++) {
+          if (!data[i])
+            continue;
+
+          datum = newAV();
+          av_push( datum, *(av_fetch( ranges, i, 0 )) );
+          av_push( datum, newSViv(data[i]) );
+
+          /* Take a reference to datum and store in quantize */
+
+          temp_aref = newRV_noinc( (SV *)datum );
+
+          if (av_store(lquantize, j++, temp_aref) == 0) {
+            SvREFCNT_dec(temp_aref);
+            warn("Failed to store quantize data");
+          }
+        }
+
+        val = (SV *)lquantize;
+        break;
+      }
+
+    default:
+      ctx->dtc_error = error("unsupported aggregating action "
+          " %s in aggregation \"%s\"\n",
+            action(aggrec, errbuf, sizeof (errbuf)),
+            aggdesc->dtagd_name);
+      return (DTRACE_AGGWALK_ERROR);
+  }
+
+  /* Put the right items on the stack */
+  PUSHMARK(SP);
+  XPUSHs(id);
+  XPUSHs(newRV_noinc((SV*)key));
+  XPUSHs(val);
+  PUTBACK;
+
+  /* Call the callback */
+
+  count = call_sv(callback, G_DISCARD);
+
+  SPAGAIN;
+
+  /* This check shouldn't really be necessary, as we're discarding the
+     result of the callback */
+  if (count != 0)
+    croak("aggwalk_callback_caller: failed to call callback!");
+
+  FREETMPS;
+  LEAVE;
+ 
+  return (DTRACE_AGGWALK_REMOVE);
+}
+
+
 /* And now the XS code, for C functions we want to access directly from Perl */
 
 MODULE = Devel::libdtrace              PACKAGE = Devel::libdtrace
@@ -411,6 +876,8 @@ new( const char *class )
     int  err;
     /* Create a hash */
     HV* hash = newHV();
+
+    /* TODO: initialize dtc_ranges to NULL */
 
     /* Create DTrace Handle / Context */
     /* NOTE: DTRACE_VERSION comes from dtrace.h */
@@ -622,7 +1089,7 @@ consume(SV *self, SV *callback )
       }
     }
 
-    /* TODO: Set up callback and it's args */
+    /* Set up callback and it's args */
     /* Take a copy of the callback into our self*/
     if (ctx->dtc_callback == (SV*)NULL) {
       /* First time through, so create a new SV */
@@ -642,6 +1109,109 @@ consume(SV *self, SV *callback )
     }
   OUTPUT: RETVAL
 
+SV *
+aggclear(SV *self)
+  PREINIT:
+    HV             *hash;
+    CTX            *ctx;
+    SV             **svp;
+    dtrace_hdl_t   *dtp;
+  CODE:
+    hash = (HV *)SvRV(self);
+    svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
+
+    if ( svp && SvOK(*svp) ) {
+      ctx = (CTX *)SvIV(*svp);
+      if (ctx->dtc_handle) {
+        dtp = ctx->dtc_handle;
+      } else {
+        croak("stop: No valid DTrace handle!");
+      }
+    }
+
+    if (dtrace_status(dtp) == -1)
+      croak("aggclear: Couldn't get status: %s",
+            dtrace_errmsg(dtp,dtrace_errno(dtp)));
+
+    dtrace_aggregate_clear(dtp);
+
+    /* Do we want to return undef, or 1 for success ? */
+    XSRETURN_UNDEF;
+
+SV *
+aggmin(void)
+  CODE:
+    SV *min = newSViv(INT64_MIN);
+    RETVAL = min;
+  OUTPUT: RETVAL
+
+SV *
+aggmax(void)
+  CODE:
+    SV *max = newSViv(INT64_MAX);
+    RETVAL = max;
+  OUTPUT: RETVAL
+
+SV *
+aggwalk(SV *self, SV *callback )
+  PREINIT:
+    HV             *hash;
+    CTX            *ctx;
+    SV             **svp;
+    dtrace_hdl_t   *dtp;
+    int             rval;
+  CODE:
+    hash = (HV *)SvRV(self);
+    svp = hv_fetchs( hash, "_my_instance_ctx", FALSE );
+
+    if ( svp && SvOK(*svp) ) {
+      ctx = (CTX *)SvIV(*svp);
+      if (ctx->dtc_handle) {
+        dtp = ctx->dtc_handle;
+      } else {
+        croak("stop: No valid DTrace handle!");
+      }
+    }
+
+    ctx->dtc_error = NULL;  /* Clean up first */
+
+    if (dtrace_status(dtp) == -1)
+      croak("aggwalk: Couldn't get status: %s",
+            dtrace_errmsg(dtp,dtrace_errno(dtp)));
+
+    if (dtrace_aggregate_snap(dtp) == -1)
+      croak("aggwalk: Couldn't snap aggregate: %s",
+            dtrace_errmsg(dtp,dtrace_errno(dtp)));
+
+    /* Set up callback and it's args */
+    /* Take a copy of the callback into our self*/
+    if (ctx->dtc_callback == (SV*)NULL) {
+      /* First time through, so create a new SV */
+      ctx->dtc_callback = newSVsv(callback);
+    } else {
+      SvSetSV(ctx->dtc_callback, callback);
+    }
+
+    rval = dtrace_aggregate_walk(dtp, aggwalk_callback_caller, (void *)self);
+
+    /*
+     * Flush the ranges cache; the ranges will go out of scope when the destructor
+     * for our object is called, and we cannot be left holding references.
+     */
+    ranges_cache(DTRACE_AGGVARIDNONE, NULL, (void *)self);
+
+    if (rval == -1) {
+      if (ctx->dtc_error != NULL)
+        RETVAL = ctx->dtc_error;
+
+      croak("aggwalk: Couldn't walk aggregate: %s",
+            dtrace_errmsg(dtp,dtrace_errno(dtp)));
+    }
+
+    /* Do we want to return undef, or 1 for success ? */
+    XSRETURN_UNDEF;
+  OUTPUT: RETVAL
+
 void
 DESTROY(SV *self)
   PREINIT:
@@ -658,5 +1228,7 @@ DESTROY(SV *self)
         dtrace_close(ctx->dtc_handle);
       free(ctx);
     }
+    /* TODO: Eliminate dtc_ranges, if it exists */
+
 
 
