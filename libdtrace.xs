@@ -758,11 +758,42 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
         AV *quantize = newAV();
         const int64_t *data =
           (int64_t *)(agg->dtada_data + aggrec->dtrd_offset);
-        AV *ranges, *datum;
+        AV *ranges,
+           *datum;
         SV *temp_aref;
         int i, j = 0;
+        int64_t   min, max;
 
-        ranges = ranges_quantize(aggdesc->dtagd_varid, object);
+        ranges = newAV();
+        for (i = 0; i < DTRACE_QUANTIZE_NBUCKETS; i++) {
+          AV *temp;
+          SV *temp_aref;
+          if (i < DTRACE_QUANTIZE_ZEROBUCKET) {
+            /*
+             * If we're less than the zero bucket, our range extends from
+             * negative infinity through to the beginning of our zeroth
+             * bucket.
+             */ 
+            min = i > 0 ? DTRACE_QUANTIZE_BUCKETVAL(i - 1) + 1 : INT64_MIN;
+            max = DTRACE_QUANTIZE_BUCKETVAL(i);
+          } else if (i == DTRACE_QUANTIZE_ZEROBUCKET) {
+            min = max = 0;
+          } else {
+            min = DTRACE_QUANTIZE_BUCKETVAL(i);
+            max = i < DTRACE_QUANTIZE_NBUCKETS - 1 ?
+              DTRACE_QUANTIZE_BUCKETVAL(i + 1) - 1 :
+              INT64_MAX;
+          }
+
+          temp = newAV();
+          av_push( temp, newSViv(min) );
+          av_push( temp, newSViv(max) );
+          /* Take a reference to the array we just created */
+          temp_aref = newRV( (SV *)temp );
+
+          /* And push it on the ranges array, presumably at the same index as 'i' */
+          av_push( ranges, temp_aref );
+        }
 
         for (i = 0; i < DTRACE_QUANTIZE_NBUCKETS; i++) {
           if (!data[i])
@@ -775,7 +806,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
 
           /* Take a reference to datum and store in quantize */
 
-          temp_aref = newRV_noinc( (SV *)datum );
+          temp_aref = newRV( (SV *)datum );
 
           if (av_store(quantize, j++, temp_aref) == 0) {
             SvREFCNT_dec(temp_aref);
@@ -783,7 +814,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
           }
         }
 
-        val = (SV *)quantize;
+        val = newRV_noinc( (SV *) quantize );
         break;
       }
 
@@ -834,11 +865,12 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
       return (DTRACE_AGGWALK_ERROR);
   }
 
+  SV *key_aref = newRV_noinc( (SV *) key );
   /* Put the right items on the stack */
   PUSHMARK(SP);
-  XPUSHs(id);
-  XPUSHs(newRV_noinc((SV*)key));
-  XPUSHs(val);
+  XPUSHs(sv_2mortal( id ));
+  XPUSHs(sv_2mortal( key_aref ));
+  XPUSHs(sv_2mortal( val ));
   PUTBACK;
 
   /* Call the callback */

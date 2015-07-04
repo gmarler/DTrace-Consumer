@@ -86,12 +86,12 @@ my $aggacts = {
                              [ [ 4,  7 ], 2 ],
                              [ [ 8, 15 ], 1 ],
                             ] },
-  lquantize => { args => [ lq(2), lq(4), lq(5), lq(8) ],
-                 expected => [
-                              [ [ $libdtrace->aggmin(), 2 ], 1 ],
-                              [ [ 3, 5 ], 2 ],
-                              [ [ 6, $libdtrace->aggmax() ], 1 ],
-                             ] },
+#  lquantize => { args => [ lq(2), lq(4), lq(5), lq(8) ],
+#                 expected => [
+#                              [ [ $libdtrace->aggmin(), 2 ], 1 ],
+#                              [ [ 3, 5 ], 2 ],
+#                              [ [ 6, $libdtrace->aggmax() ], 1 ],
+#                             ] },
 };
 
 diag "AGGACTS:\n" . Dumper($aggacts);
@@ -128,6 +128,7 @@ lives_ok(
 
 $libdtrace->aggwalk(
   sub {
+    diag Dumper( \@_ );
     my ($varid, $key, $val) = @_;
     ok($varids->[$varid], 'invalid variable ID ' . $varid);
     ok($aggacts->{$varids->[$varid]}, 'unknown variable ID ' . $varid);
