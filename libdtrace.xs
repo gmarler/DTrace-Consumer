@@ -477,7 +477,7 @@ ranges_quantize(dtrace_aggvarid_t varid, void *object)
 
   ranges = newAV();
   /* Extend the array to the size we need for our buckets */
-  av_fill(ranges, DTRACE_QUANTIZE_NBUCKETS - 1);
+  /* av_fill(ranges, DTRACE_QUANTIZE_NBUCKETS - 1); */
 
   for (i = 0; i < DTRACE_QUANTIZE_NBUCKETS; i++) {
     AV *temp;
@@ -542,7 +542,7 @@ ranges_lquantize(dtrace_aggvarid_t varid, const uint64_t arg, void *object)
 
   ranges = newAV();
   /* Extend the array to the size we need for lquantize */
-  av_fill(ranges, levels + 2 - 1);
+  /* av_fill(ranges, levels + 2 - 1); */
 
   for (i = 0; i <= levels + 1; i++) {
     AV *temp;
@@ -595,7 +595,7 @@ ranges_llquantize(dtrace_aggvarid_t varid, const uint64_t arg, int nbuckets,
 
   ranges = newAV();
   /* Extend the array to the size we need for llquantize */
-  av_fill(ranges, nbuckets - 1);
+  /*  av_fill(ranges, nbuckets - 1); */
 
   for (order = 0; order < low; order++)
     value *= factor;
@@ -660,7 +660,7 @@ ranges_llquantize(dtrace_aggvarid_t varid, const uint64_t arg, int nbuckets,
 
   if (bucket + 1 != nbuckets)
     croak("ranges_llquantize: bucket count off");
-  
+
   return (ranges_cache(varid, ranges, object));
 }
 
@@ -830,7 +830,8 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
         int64_t   min, max;
 
         uint64_t arg = *data++;
-        int levels = (aggrec->dtrd_size / sizeof (uint64_t)) - 1;
+        int levels   = (aggrec->dtrd_size / sizeof (uint64_t)) - 1;
+        int nbuckets = levels;
 
         if (aggrec->dtrd_action == DTRACEAGG_LQUANTIZE) {
           int32_t   base;
@@ -859,9 +860,80 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
             av_push( ranges, temp_aref );
           }
         } else {
+          int64_t   value = 1, next, step;
+          int       bucket = 0, order;
+          uint16_t  factor, low, high, nsteps;
 
-          ranges_llquantize(aggdesc->dtagd_varid, arg, levels, object);
+          factor = DTRACE_LLQUANTIZE_FACTOR(arg);
+          low    = DTRACE_LLQUANTIZE_LMAG(arg);   /* was ..._LOW */
+          high   = DTRACE_LLQUANTIZE_HMAG(arg);   /* was ..._HIGH */
+          nsteps = DTRACE_LLQUANTIZE_STEPS(arg);  /* was ..._NSTEP */
 
+          ranges = newAV();
+
+          for (order = 0; order < low; order++)
+            value *= factor;
+
+          AV *temp;
+          SV *temp_aref;
+
+          temp = newAV();
+          av_push( temp, newSViv(0) );
+          av_push( temp, newSViv(value - 1) );
+
+          /* Take a reference to the array we just created */
+          temp_aref = newRV_noinc( (SV *)temp );
+
+          /* And insert it into ranges array, at the right bucket */
+          if (av_store(ranges, bucket, temp_aref) == 0) {
+            SvREFCNT_dec(temp_aref);
+            warn("ranges_llquantize: Failed to store first bucket in range");
+          }
+
+          bucket++;
+
+          next = value * factor;
+          step = next > nsteps ? next / nsteps : 1;
+
+          while (order <= high) {
+            temp = newAV();
+            av_push( temp, newSViv(value) );
+            av_push( temp, newSViv(value + step - 1) );
+
+            /* Take a reference to the array we just created */
+            temp_aref = newRV( (SV *)temp );
+
+            /* And insert it into ranges array, at the right bucket */
+            if (av_store(ranges, bucket, temp_aref) == 0) {
+              SvREFCNT_dec(temp_aref);
+              warn("ranges_llquantize: Failed to store intermediate buckets in range");
+            }
+
+            bucket++;
+
+            if ((value += step) != next)
+              continue;
+
+            next = value * factor;
+            step = next > nsteps ? next / nsteps : 1;
+            order++;
+          }
+
+          temp = newAV();
+          av_push( temp, newSViv(value) );
+          av_push( temp, newSViv(INT64_MAX) );
+
+          /* Take a reference to the array we just created */
+          temp_aref = newRV_noinc( (SV *)temp );
+
+          /* And insert it into ranges array, at the right bucket */
+          if (av_store(ranges, bucket, temp_aref) == 0) {
+            SvREFCNT_dec(temp_aref);
+            warn("ranges_llquantize: Failed to store last bucket in range");
+          }
+
+          if (bucket + 1 != nbuckets)
+            croak("ranges_llquantize: bucket count off");
         }
 
         for (i = 0; i < levels; i++) {
