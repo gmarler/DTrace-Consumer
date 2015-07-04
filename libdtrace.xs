@@ -544,7 +544,7 @@ ranges_lquantize(dtrace_aggvarid_t varid, const uint64_t arg, void *object)
   /* Extend the array to the size we need for lquantize */
   av_fill(ranges, levels + 2 - 1);
 
-  for (i = 0; i < levels + 1; i++) {
+  for (i = 0; i <= levels + 1; i++) {
     AV *temp;
     SV *temp_aref;
 
@@ -827,25 +827,60 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
         AV *ranges, *datum;
         SV *temp_aref;
         int i, j = 0;
+        int64_t   min, max;
 
         uint64_t arg = *data++;
         int levels = (aggrec->dtrd_size / sizeof (uint64_t)) - 1;
 
-        ranges = (aggrec->dtrd_action == DTRACEAGG_LQUANTIZE ?
-            ranges_lquantize(aggdesc->dtagd_varid, arg, object) :
-            ranges_llquantize(aggdesc->dtagd_varid, arg, levels, object));
+        if (aggrec->dtrd_action == DTRACEAGG_LQUANTIZE) {
+          int32_t   base;
+          uint16_t  step, levels;
+
+          base   = DTRACE_LQUANTIZE_BASE(arg);
+          step   = DTRACE_LQUANTIZE_STEP(arg);
+          levels = DTRACE_LQUANTIZE_LEVELS(arg);
+
+          ranges = newAV();
+
+          for (i = 0; i <= levels + 1; i++) {
+            AV *temp;
+            SV *temp_aref;
+
+            min = i == 0     ? INT64_MIN : base + ((i - 1) * step);
+            max = i > levels ? INT64_MAX : base + (i * step) - 1;
+
+            temp = newAV();
+            av_push( temp, newSViv(min) );
+            av_push( temp, newSViv(max) );
+            /* Take a reference to the array we just created */
+            temp_aref = newRV( (SV *)temp );
+
+            /* And push it on the ranges array, presumably at the same index as 'i' */
+            av_push( ranges, temp_aref );
+          }
+        } else {
+
+          ranges_llquantize(aggdesc->dtagd_varid, arg, levels, object);
+
+        }
 
         for (i = 0; i < levels; i++) {
           if (!data[i])
             continue;
 
           datum = newAV();
-          av_push( datum, *(av_fetch( ranges, i, 0 )) );
+          SV **elem = av_fetch(ranges, i, 0);
+          if (elem == NULL) {
+            warn("Unable to fetch element %d from ranges for quantize",i);
+            /* Tack on an undev instead */
+            av_push( datum, newSV( 0 ) );
+          } else {
+            av_push( datum, *(av_fetch( ranges, i, 0 )) );
+          }
           av_push( datum, newSViv(data[i]) );
 
           /* Take a reference to datum and store in quantize */
-
-          temp_aref = newRV_noinc( (SV *)datum );
+          temp_aref = newRV( (SV *)datum );
 
           if (av_store(lquantize, j++, temp_aref) == 0) {
             SvREFCNT_dec(temp_aref);
@@ -853,7 +888,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
           }
         }
 
-        val = (SV *)lquantize;
+        val = newRV_noinc( (SV *) lquantize );
         break;
       }
 
