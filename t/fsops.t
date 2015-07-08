@@ -153,7 +153,7 @@ $timer = IO::Async::Timer::Periodic->new(
           
          if ($iterations > 7) {
            # Stop the timer
-           $loop->remove( $timer );
+           #$loop->remove( $timer );
            $loop->loop_stop();
          }
          # diag Dumper( $rec );
