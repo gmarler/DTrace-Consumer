@@ -1,4 +1,4 @@
-package Devel::libdtrace;
+package DTrace::Consumer;
 
 use strict;
 use warnings;
@@ -6,9 +6,9 @@ use XSLoader;
 
 # VERSION
 
-# ABSTRACT: Perl XS interface to libdtrace
+# ABSTRACT: A DTrace Consumer implemented in Perl XS
 
-XSLoader::load('Devel::libdtrace', $VERSION);
+XSLoader::load('DTrace::Consumer', $VERSION);
 
 1;
 
@@ -16,13 +16,13 @@ __END__
 
 =head1 NAME
 
-Devel::libdtrace - Perl XS interface to libdtrace library
+DTrace::Consumer - A DTrace Consumer implemented in Perl XS
 
 =method new
 
-constructs a new DTrace library handle
+constructs a new DTrace Consumer library handle
 
-my $dtc = Devel::libdtrace->new();
+my $dtc = DTrace::Consumer->new();
 
 =method version
 

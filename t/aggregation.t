@@ -7,24 +7,24 @@ use Test::Most;
 use Scalar::Util qw(reftype);
 use Data::Dumper;
 
-use_ok( 'Devel::libdtrace ' );
+use_ok( 'DTrace::Consumer' );
 
-my $libdtrace = Devel::libdtrace->new();
+my $dtc = DTrace::Consumer->new();
 
-isa_ok( $libdtrace, 'Devel::libdtrace' );
-can_ok( $libdtrace, qw( strcompile go aggwalk stop ) );
+isa_ok( $dtc, 'DTrace::Consumer' );
+can_ok( $dtc, qw( strcompile go aggwalk stop ) );
 
 lives_ok(
   sub {
-    $libdtrace->strcompile('BEGIN { @["foo", "bar", 9904, 61707] = count(); }');
-    $libdtrace->go();
+    $dtc->strcompile('BEGIN { @["foo", "bar", 9904, 61707] = count(); }');
+    $dtc->go();
   },
   'strcompile of a BEGIN clause with an aggregation'
 );
 
 lives_ok(
   sub {
-    $libdtrace->aggwalk(
+    $dtc->aggwalk(
       sub {
         my ($varid, $key_aref, $val) = @_;
 
@@ -54,14 +54,14 @@ lives_ok(
 
 lives_ok(
   sub {
-    $libdtrace->stop();
+    $dtc->stop();
   },
   'Stop DTrace'
 );
 
-$libdtrace = undef;
+$dtc = undef;
 
-$libdtrace = Devel::libdtrace->new();
+$dtc = DTrace::Consumer->new();
 
 sub lq {
   my $val = shift;
@@ -88,9 +88,9 @@ my $aggacts = {
                             ] },
   lquantize => { args => [ lq(2), lq(4), lq(5), lq(8) ],
                  expected => [
-                              [ [ $libdtrace->aggmin(), 2 ], 1 ],
+                              [ [ $dtc->aggmin(), 2 ], 1 ],
                               [ [ 3, 5 ], 2 ],
-                              [ [ 6, $libdtrace->aggmax() ], 1 ],
+                              [ [ 6, $dtc->aggmax() ], 1 ],
                              ] },
 };
 
@@ -114,19 +114,19 @@ diag "PROGRAM:\n$prog";
 
 lives_ok(
   sub {
-    $libdtrace->strcompile($prog);
+    $dtc->strcompile($prog);
   },
   'strcompile of aggregation program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->go();
+    $dtc->go();
   },
   'go() of aggregation program'
 );
 
-$libdtrace->aggwalk(
+$dtc->aggwalk(
   sub {
     diag Dumper( \@_ );
     my ($varid, $key, $val) = @_;

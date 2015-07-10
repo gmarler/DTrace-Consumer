@@ -6,24 +6,24 @@ use feature qw(say);
 use Test::Most;
 use Data::Dumper;
 
-use_ok( 'Devel::libdtrace ' );
+use_ok( 'DTrace::Consumer' );
 
-my $libdtrace = Devel::libdtrace->new();
+my $dtc = DTrace::Consumer->new();
 
-isa_ok( $libdtrace, 'Devel::libdtrace' );
-can_ok( $libdtrace, qw( strcompile go consume stop ) );
+isa_ok( $dtc, 'DTrace::Consumer' );
+can_ok( $dtc, qw( strcompile go consume stop ) );
 
 lives_ok(
   sub {
-    $libdtrace->strcompile('BEGIN { printf("{ foo: %d", 123); printf(", bar: %d", 456); }');
-    $libdtrace->go();
+    $dtc->strcompile('BEGIN { printf("{ foo: %d", 123); printf(", bar: %d", 456); }');
+    $dtc->go();
   },
   'strcompile of a BEGIN clause with printf'
 );
 
 lives_ok(
   sub {
-    $libdtrace->consume(
+    $dtc->consume(
       sub {
         my ($probe, $rec) = @_;
         cmp_ok($probe->{provider}, 'eq', 'dtrace',
@@ -46,7 +46,7 @@ lives_ok(
 
 lives_ok(
   sub {
-    $libdtrace->stop();
+    $dtc->stop();
   },
   'Stop DTrace'
 );

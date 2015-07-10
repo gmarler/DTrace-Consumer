@@ -7,13 +7,12 @@ use Test::Most;
 use Scalar::Util qw(reftype);
 use Data::Dumper;
 
-use_ok( 'Devel::libdtrace ' );
+use_ok( 'DTrace::Consumer' );
 
+my $dtc = DTrace::Consumer->new();
 
-my $libdtrace = Devel::libdtrace->new();
-
-isa_ok( $libdtrace, 'Devel::libdtrace' );
-can_ok( $libdtrace, qw( strcompile go aggwalk stop ) );
+isa_ok( $dtc, 'DTrace::Consumer' );
+can_ok( $dtc, qw( strcompile go aggwalk stop ) );
 
 my $prog = "BEGIN\n{\n";
 
@@ -27,21 +26,21 @@ diag $prog;
 
 lives_ok(
   sub {
-    $libdtrace->strcompile($prog);
+    $dtc->strcompile($prog);
   },
   'strcompile of 1st llquantize program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->go();
+    $dtc->go();
   },
   'Run go() on 1st llquantize program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->aggwalk(
+    $dtc->aggwalk(
       sub {
         my ($varid, $key, $val) = @_;
 
@@ -76,7 +75,7 @@ lives_ok(
           [ [ 90, 94 ], 5 ],
           [ [ 95, 99 ], 5 ],
           #[ [ 100, 9223372036854776000 ], 1 ],
-          [ [ 100, $libdtrace->aggmax() ], 1 ],
+          [ [ 100, $dtc->aggmax() ], 1 ],
         ];
 
         cmp_deeply($val, $expected,
@@ -87,9 +86,9 @@ lives_ok(
   'walking llquantize agg 1 shows correct data'
 );
 
-$libdtrace = undef;
+$dtc = undef;
 
-$libdtrace = Devel::libdtrace->new();
+$dtc = DTrace::Consumer->new();
 
 $prog = "BEGIN\n{\n";
 
@@ -103,21 +102,21 @@ diag $prog;
 
 lives_ok(
   sub {
-    $libdtrace->strcompile($prog);
+    $dtc->strcompile($prog);
   },
   'strcompile of 2nd llquantize program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->go();
+    $dtc->go();
   },
   'Run go() on 2nd llquantize program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->aggwalk(
+    $dtc->aggwalk(
       sub {
         my ($varid, $key, $val) = @_;
 
@@ -142,7 +141,7 @@ lives_ok(
           [ [ 8000, 8999 ], 20 ],
           [ [ 9000, 9999 ], 20 ],
           # [ [ 10000, 9223372036854776000 ], 2 ]
-          [ [ 10000, $libdtrace->aggmax() ], 2 ]
+          [ [ 10000, $dtc->aggmax() ], 2 ]
         ];
 
         cmp_deeply($val, $expected,
