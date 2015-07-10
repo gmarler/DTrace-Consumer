@@ -3,15 +3,15 @@ use warnings;
 
 use Test::More;
 
-use Devel::libdtrace;
+use DTrace::Consumer;
 
-my $libdtrace = Devel::libdtrace->new();
+my $dtc = DTrace::Consumer->new();
 
-isa_ok( $libdtrace, 'Devel::libdtrace' );
-can_ok( $libdtrace, 'version'             );
+isa_ok( $dtc, 'DTrace::Consumer' );
+can_ok( $dtc, 'version'             );
 
-is ($libdtrace->version, '0.0.2',
-    'Devel::libdtrace library is version 0.0.2' );
+is ($dtc->version, '0.0.2',
+    'DTrace::Consumer library is version 0.0.2' );
 
 done_testing();
 

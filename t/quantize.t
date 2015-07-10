@@ -7,13 +7,12 @@ use Test::Most;
 use Scalar::Util qw(reftype);
 use Data::Dumper;
 
-use_ok( 'Devel::libdtrace ' );
+use_ok( 'DTrace::Consumer' );
 
+my $dtc = DTrace::Consumer->new();
 
-my $libdtrace = Devel::libdtrace->new();
-
-isa_ok( $libdtrace, 'Devel::libdtrace' );
-can_ok( $libdtrace, qw( strcompile go aggwalk stop ) );
+isa_ok( $dtc, 'DTrace::Consumer' );
+can_ok( $dtc, qw( strcompile go aggwalk stop ) );
 
 my $prog = "BEGIN\n{\n";
 
@@ -27,21 +26,21 @@ diag $prog;
 
 lives_ok(
   sub {
-    $libdtrace->strcompile($prog);
+    $dtc->strcompile($prog);
   },
   'strcompile of quantize program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->go();
+    $dtc->go();
   },
   'Run go() on quantize program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->aggwalk(
+    $dtc->aggwalk(
       sub {
         diag Data::Dumper::Dumper( \@_ );
         my ($varid, $key, $val) = @_;

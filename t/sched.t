@@ -7,13 +7,13 @@ use Test::Most;
 use Scalar::Util qw(reftype);
 use Data::Dumper;
 
-use_ok( 'Devel::libdtrace ' );
+use_ok( 'DTrace::Consumer' );
 
 
-my $libdtrace = Devel::libdtrace->new();
+my $dtc = DTrace::Consumer->new();
 
-isa_ok( $libdtrace, 'Devel::libdtrace' );
-can_ok( $libdtrace, qw( setopt strcompile go aggwalk stop ) );
+isa_ok( $dtc, 'DTrace::Consumer' );
+can_ok( $dtc, qw( setopt strcompile go aggwalk stop ) );
 
 my $prog = "
 sched:::on-cpu
@@ -33,28 +33,28 @@ diag $prog;
 
 lives_ok(
   sub {
-    $libdtrace->setopt('aggrate','10ms');
+    $dtc->setopt('aggrate','10ms');
   },
   'setopt of aggrate to 10ms successful'
 );
 
 lives_ok(
   sub {
-    $libdtrace->strcompile($prog);
+    $dtc->strcompile($prog);
   },
   'strcompile of sched program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->go();
+    $dtc->go();
   },
   'Run go() on sched program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->aggwalk(
+    $dtc->aggwalk(
       sub {
         diag Data::Dumper::Dumper( \@_ );
         my ($varid, $key, $val) = @_;

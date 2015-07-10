@@ -9,47 +9,47 @@ use IO::Async::Timer::Periodic;
 use IO::Async::Loop;
 
 
-use_ok( 'Devel::libdtrace ' );
+use_ok( 'DTrace::Consumer' );
 
-my $libdtrace = Devel::libdtrace->new();
+my $dtc = DTrace::Consumer->new();
 
-isa_ok( $libdtrace, 'Devel::libdtrace' );
-can_ok( $libdtrace, qw( strcompile setopt go consume stop ) );
+isa_ok( $dtc, 'DTrace::Consumer' );
+can_ok( $dtc, qw( strcompile setopt go consume stop ) );
 
-dies_ok( sub { $libdtrace->strcompile(); } );
-throws_ok( sub { $libdtrace->strcompile(61707); },
+dies_ok( sub { $dtc->strcompile(); } );
+throws_ok( sub { $dtc->strcompile(61707); },
            qr/Program\smust\sbe\sa\sstring/,
            'strcompile with an integer, rather than a string' );
-dies_ok( sub { $libdtrace->strcompile('this is not D'); },
+dies_ok( sub { $dtc->strcompile('this is not D'); },
          'strcompile of non-D script should die' );
-dies_ok( sub { $libdtrace->strcompile('bogus-probe { trace(0); }'); },
+dies_ok( sub { $dtc->strcompile('bogus-probe { trace(0); }'); },
          'strcompile of bogus probe should die' );
 
 # TODO: Test output of this
-lives_ok( sub { $libdtrace->strcompile('BEGIN { trace(9904); }'); },
+lives_ok( sub { $dtc->strcompile('BEGIN { trace(9904); }'); },
           'strcompile of valid BEGIN clause should live' );
 
-dies_ok( sub { $libdtrace->setopt(); },
+dies_ok( sub { $dtc->setopt(); },
          'setopt() with no args should die' );
-dies_ok( sub { $libdtrace->setopt('bogusoption'); },
+dies_ok( sub { $dtc->setopt('bogusoption'); },
          'setopt() with bogus option should die' );
-dies_ok( sub { $libdtrace->setopt('bufpolicy'); },
+dies_ok( sub { $dtc->setopt('bufpolicy'); },
          'setopt() of option needing value (but has none) should die' );
-dies_ok( sub { $libdtrace->setopt('bufpolicy', 100); },
+dies_ok( sub { $dtc->setopt('bufpolicy', 100); },
          'setopt() of option with int (rather than string) value should die' );
 
-lives_ok( sub { $libdtrace->setopt('bufpolicy', 'ring'); },
+lives_ok( sub { $dtc->setopt('bufpolicy', 'ring'); },
           'set bufpolicy of "ring"');
-lives_ok( sub { $libdtrace->setopt('bufpolicy', 'switch'); },
+lives_ok( sub { $dtc->setopt('bufpolicy', 'switch'); },
           'set bufpolicy of "switch"');
 
-lives_ok( sub { $libdtrace->go(); } );
+lives_ok( sub { $dtc->go(); } );
 
 my ($seen, $lastrec);
 
 lives_ok(
   sub {
-    $libdtrace->consume(
+    $dtc->consume(
       sub {
         my $probe = shift;
         my $rec   = shift;
@@ -73,24 +73,24 @@ lives_ok(
 isnt( $seen, undef, 'Did not consume expected record');
 isnt( $lastrec, undef, 'Did not see delineator between EPIDs');
 
-dies_ok( sub { $libdtrace->go() }, 'Cannot go() when already going' );
-dies_ok( sub { $libdtrace->strcompile('BEGIN { trace(0); }') },
+dies_ok( sub { $dtc->go() }, 'Cannot go() when already going' );
+dies_ok( sub { $dtc->strcompile('BEGIN { trace(0); }') },
                'Cannot strcompile() when already going' );
 
-lives_ok( sub { $libdtrace->stop(); },
+lives_ok( sub { $dtc->stop(); },
           'stopping consumption of BEGIN clause' );
 
 #
 # Now test that END clauses work properly.
 #
-$libdtrace = undef;
-$libdtrace = Devel::libdtrace->new();
+$dtc = undef;
+$dtc = DTrace::Consumer->new();
 
 lives_ok( sub {
-            $libdtrace->strcompile('END { trace(61707); }');
+            $dtc->strcompile('END { trace(61707); }');
           }, 'compile of END clause should succeed');
 
-lives_ok( sub { $libdtrace->go(); },
+lives_ok( sub { $dtc->go(); },
           'go() for END clause should succeed' );
 
 $seen     = 0;
@@ -99,7 +99,7 @@ $seen     = 0;
 # ->stop() the consumer...
 lives_ok(
   sub {
-    $libdtrace->consume(
+    $dtc->consume(
       sub {
         fail("consuming END clause that hasn't fired yet");
       }
@@ -108,12 +108,12 @@ lives_ok(
 );
 
 # This will cause the END clause to fire
-lives_ok( sub { $libdtrace->stop(); },
+lives_ok( sub { $dtc->stop(); },
           'stopping consumption of END clause' );
 
 lives_ok(
   sub {
-    $libdtrace->consume(
+    $dtc->consume(
       sub {
         my $probe = shift;
         my $rec   = shift;
@@ -144,14 +144,14 @@ lives_ok(
 #
 # Now start consuming a 'tick'ing activity
 #
-$libdtrace = undef;
-$libdtrace = Devel::libdtrace->new();
+$dtc = undef;
+$dtc = DTrace::Consumer->new();
 
 lives_ok( sub {
-            $libdtrace->strcompile('tick-1sec { trace(i++); }');
+            $dtc->strcompile('tick-1sec { trace(i++); }');
           }, 'compile of tick-1sec clause should succeed');
 
-lives_ok( sub { $libdtrace->go(); },
+lives_ok( sub { $dtc->go(); },
           'go() for tick-1sec clause should succeed' );
 
 my ($secs, $val);
@@ -166,7 +166,7 @@ $timer = IO::Async::Timer::Periodic->new(
    on_tick => sub {
      $iterations++;
 
-     $libdtrace->consume(
+     $dtc->consume(
        sub {
          my ($probe, $rec) = @_;
 

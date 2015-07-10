@@ -3,25 +3,25 @@ use warnings;
 
 use Test::Most;
 
-use_ok( 'Devel::libdtrace ' );
+use_ok( 'DTrace::Consumer' );
 
-my $libdtrace = Devel::libdtrace->new();
+my $dtc = DTrace::Consumer->new();
 
-isa_ok( $libdtrace, 'Devel::libdtrace' );
-can_ok( $libdtrace, 'go'       );
+isa_ok( $dtc, 'DTrace::Consumer' );
+can_ok( $dtc, 'go'       );
 
 
-lives_ok( sub { $libdtrace->strcompile("BEGIN"); },
+lives_ok( sub { $dtc->strcompile("BEGIN"); },
           'Basic BEGIN block should live' );
 
-lives_ok( sub { $libdtrace->go(); },
+lives_ok( sub { $dtc->go(); },
           'Enabling of simple DTrace should live' );
 
-undef $libdtrace;
-$libdtrace = Devel::libdtrace->new();
+undef $dtc;
+$dtc = DTrace::Consumer->new();
 
 # TODO: figure out why go when nothing has been enabled fails to fail
-#dies_ok( sub { $libdtrace->go(); },
+#dies_ok( sub { $dtc->go(); },
 #          'Non-compiled go call should die' );
 
 done_testing();

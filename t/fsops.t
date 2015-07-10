@@ -9,13 +9,13 @@ use Data::Dumper;
 use IO::Async::Timer::Periodic;
 use IO::Async::Loop;
 
-use_ok( 'Devel::libdtrace ' );
+use_ok( 'DTrace::Consumer' );
 
 
-my $libdtrace = Devel::libdtrace->new();
+my $dtc = DTrace::Consumer->new();
 
-isa_ok( $libdtrace, 'Devel::libdtrace' );
-can_ok( $libdtrace, qw( strcompile go aggwalk stop ) );
+isa_ok( $dtc, 'DTrace::Consumer' );
+can_ok( $dtc, qw( strcompile go aggwalk stop ) );
 
 my $prog = q\
 this string fstype;
@@ -109,21 +109,21 @@ diag $prog;
 
 lives_ok(
   sub {
-    $libdtrace->strcompile($prog);
+    $dtc->strcompile($prog);
   },
   'strcompile of 1st lquantize program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->go();
+    $dtc->go();
   },
   'Run go() on 1st lquantize program'
 );
 
 lives_ok(
   sub {
-    $libdtrace->aggwalk(
+    $dtc->aggwalk(
       sub {
         diag Data::Dumper::Dumper( \@_ );
         my ($varid, $key, $val) = @_;
@@ -144,13 +144,12 @@ $timer = IO::Async::Timer::Periodic->new(
    on_tick => sub {
      $iterations++;
      say "on_tick ITERATION: $iterations";
-     $libdtrace->aggwalk(
+     $dtc->aggwalk(
        sub {
          say "agg_walk CALLBACK ITERATION: $iterations";
          diag Data::Dumper::Dumper( \@_ );
          my ($varid, $key, $val) = @_;
 
-          
          if ($iterations > 7) {
            # Stop the timer
            #$loop->remove( $timer );
