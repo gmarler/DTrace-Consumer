@@ -5,4 +5,4 @@
 .build
 _build
 # Avoid archives of *this* distribution
-/Devel-libdtrace*
+/DTrace-Consumer*
