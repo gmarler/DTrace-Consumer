@@ -1000,7 +1000,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
 
 /* And now the XS code, for C functions we want to access directly from Perl */
 
-MODULE = Devel::libdtrace              PACKAGE = Devel::libdtrace
+MODULE = DTrace::Consumer              PACKAGE = DTrace::Consumer
 
 # XS code
 

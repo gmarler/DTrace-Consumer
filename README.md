@@ -1,5 +1,5 @@
-# Devel-libdtrace
-Perl XS interface to libdtrace
+# DTrace-Consumer
+A DTrace Consumer implemented in Perl XS
 
 ***
 
