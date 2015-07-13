@@ -901,7 +901,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
             av_push( temp, newSViv(value + step - 1) );
 
             /* Take a reference to the array we just created */
-            temp_aref = newRV( (SV *)temp );
+            temp_aref = newRV_noinc( (SV *)temp );
 
             /* And insert it into ranges array, at the right bucket */
             if (av_store(ranges, bucket, temp_aref) == 0) {
@@ -952,7 +952,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
           av_push( datum, newSViv(data[i]) );
 
           /* Take a reference to datum and store in quantize */
-          temp_aref = newRV( (SV *)datum );
+          temp_aref = newRV_noinc( (SV *)datum );
 
           if (av_store(lquantize, j++, temp_aref) == 0) {
             SvREFCNT_dec(temp_aref);
@@ -1337,7 +1337,7 @@ aggwalk(SV *self, SV *callback )
      * Flush the ranges cache; the ranges will go out of scope when the destructor
      * for our object is called, and we cannot be left holding references.
      */
-    ranges_cache(DTRACE_AGGVARIDNONE, NULL, (void *)self);
+    /* ranges_cache(DTRACE_AGGVARIDNONE, NULL, (void *)self); */
 
     if (rval == -1) {
       if (ctx->dtc_error != NULL)
