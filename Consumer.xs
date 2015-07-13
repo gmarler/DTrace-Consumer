@@ -878,8 +878,8 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
           SV *temp_aref;
 
           temp = newAV();
-          av_push( temp, newSViv(0) );
-          av_push( temp, newSViv(value - 1) );
+          av_push( temp, sv_2mortal( newSViv(0) ) );
+          av_push( temp, sv_2mortal( newSViv(value - 1) ) );
 
           /* Take a reference to the array we just created */
           temp_aref = newRV_noinc( (SV *)temp );
@@ -897,8 +897,8 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
 
           while (order <= high) {
             temp = newAV();
-            av_push( temp, newSViv(value) );
-            av_push( temp, newSViv(value + step - 1) );
+            av_push( temp, sv_2mortal( newSViv(value) ) );
+            av_push( temp, sv_2mortal( newSViv(value + step - 1) ) );
 
             /* Take a reference to the array we just created */
             temp_aref = newRV_noinc( (SV *)temp );
@@ -920,8 +920,8 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
           }
 
           temp = newAV();
-          av_push( temp, newSViv(value) );
-          av_push( temp, newSViv(INT64_MAX) );
+          av_push( temp, sv_2mortal( newSViv(value) ) );
+          av_push( temp, sv_2mortal( newSViv(INT64_MAX) ) );
 
           /* Take a reference to the array we just created */
           temp_aref = newRV_noinc( (SV *)temp );
@@ -945,11 +945,11 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
           if (elem == NULL) {
             warn("Unable to fetch element %d from ranges for quantize",i);
             /* Tack on an undev instead */
-            av_push( datum, newSV( 0 ) );
+            av_push( datum, sv_2mortal( newSV( 0 ) ) );
           } else {
             av_push( datum, *(av_fetch( ranges, i, 0 )) );
           }
-          av_push( datum, newSViv(data[i]) );
+          av_push( datum, sv_2mortal( newSViv(data[i]) ) );
 
           /* Take a reference to datum and store in quantize */
           temp_aref = newRV_noinc( (SV *)datum );
@@ -993,7 +993,8 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
 
   FREETMPS;
   LEAVE;
- 
+
+
   return (DTRACE_AGGWALK_REMOVE);
 }
 
