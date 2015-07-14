@@ -796,7 +796,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
           av_push( temp, newSViv(min) );
           av_push( temp, newSViv(max) );
           /* Take a reference to the array we just created */
-          temp_aref = newRV( (SV *)temp );
+          temp_aref = newRV_noinc( (SV *)temp );
 
           /* And push it on the ranges array, presumably at the same index as 'i' */
           av_push( ranges, temp_aref );
@@ -813,7 +813,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
 
           /* Take a reference to datum and store in quantize */
 
-          temp_aref = newRV( (SV *)datum );
+          temp_aref = newRV_noinc( (SV *)datum );
 
           if (av_store(quantize, j++, temp_aref) == 0) {
             SvREFCNT_dec(temp_aref);
@@ -861,7 +861,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
             av_push( temp, newSViv(min) );
             av_push( temp, newSViv(max) );
             /* Take a reference to the array we just created */
-            temp_aref = newRV( (SV *)temp );
+            temp_aref = newRV_noinc( (SV *)temp );
 
             /* And push it on the ranges array, presumably at the same index as 'i' */
             av_push( ranges, temp_aref );
@@ -980,11 +980,12 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
   }
 
   SV *key_aref = newRV_noinc( (SV *) key );
+
   /* Put the right items on the stack */
   PUSHMARK(SP);
-  XPUSHs(sv_2mortal( id ));
-  XPUSHs(sv_2mortal( key_aref ));
-  XPUSHs(sv_2mortal( val ));
+  XPUSHs( id );
+  XPUSHs( key_aref );
+  XPUSHs( val );
   PUTBACK;
 
   /* Call the callback */
@@ -997,6 +998,12 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
      result of the callback */
   if (count != 0)
     croak("aggwalk_callback_caller: failed to call callback!");
+
+  /* Now that we're done with the references we've created, we decrement their
+   * refcounts so they'll be synchronously reclaimed/freed */
+  SvREFCNT_dec( id );
+  SvREFCNT_dec( key_aref );
+  SvREFCNT_dec( val );
 
   FREETMPS;
   LEAVE;
