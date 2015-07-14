@@ -1,0 +1,56 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+# PODNAME: consume-leak
+
+use DTrace::Consumer;
+use Devel::Leak;
+use Devel::Peek;
+use IO::Async::Loop;
+use IO::Async::Timer::Periodic;
+
+my $prog = q\
+tick-1sec {
+  trace(i++);
+}
+\;
+
+my $dtc = DTrace::Consumer->new();
+$dtc->strcompile($prog);
+$dtc->go();
+
+my $loop = IO::Async::Loop->new;
+
+my $iterations;
+my $timer = IO::Async::Timer::Periodic->new(
+   interval => 1,
+ 
+   on_tick => sub {
+     $iterations++;
+
+     $dtc->consume(
+       sub {
+         #Devel::Peek::Dump( \@_ );
+         my ($probe, $rec) = @_;
+
+         if (!$rec) { return; }
+
+         if ((my $val = $rec->{data}) > 50) {
+           # Stop the loop
+           $loop->loop_stop();
+         }
+       }
+     );
+   },
+);
+ 
+$timer->start;
+ 
+$loop->add( $timer );
+ 
+$loop->run;
+
+
+

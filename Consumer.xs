@@ -308,14 +308,6 @@ consume_callback_caller(const dtrace_probedata_t *data,
 
   if ( svp && SvOK(*svp) ) {
     ctx = (CTX *)SvIV(*svp);
-    /* TODO: We don't need the dtc_handler here - remove it */
-    /*
-    if (ctx->dtc_handle) {
-      dtp = ctx->dtc_handle;
-    } else {
-      croak("consume_callback_caller: No valid DTrace handle!");
-    }
-    */
   }
   /* Extract the callback */
   callback = ctx->dtc_callback;
@@ -336,6 +328,7 @@ consume_callback_caller(const dtrace_probedata_t *data,
 
   /* Handle case where the rec is NULL */
   if (rec == NULL) {
+    warn("In consume rec == NULL call path");
     /* Call the callback with *just* the probe description */
     PUSHMARK(SP);
     XPUSHs(probe_href);
@@ -393,6 +386,13 @@ consume_callback_caller(const dtrace_probedata_t *data,
     croak("consume_callback_caller: FAIL!\n");
 
   /* TODO: Pop something off the stack here? */
+
+  warn("consume PROBE HREF");
+  sv_dump(probe_href);
+  if (SvROK(rec_href)) {
+    warn("consume RECORD HREF:");
+    sv_dump(rec_href);
+  }
 
   FREETMPS;
   LEAVE;
