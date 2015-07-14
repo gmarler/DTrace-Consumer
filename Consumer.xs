@@ -808,7 +808,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
 
           datum = newAV();
           /* TODO: Check that av_fetch() returns non-NULL before dereferencing it */
-          av_push( datum, *(av_fetch(ranges, i, 0 )) );
+          av_push( datum, newSVsv(*(av_fetch(ranges, i, 0 ))) );
           av_push( datum, newSViv(data[i]) );
 
           /* Take a reference to datum and store in quantize */
@@ -822,6 +822,13 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
         }
 
         val = newRV_noinc( (SV *) quantize );
+
+        /* Cleanup our temporary ranges AV, if it exists */
+        /* warn("RANGES   has REFCOUNT: %d", SvREFCNT( (SV *)ranges )); */
+        /* TODO: Make sure this is a real AV before we do this... */
+        /* SvREFCNT_dec( (SV *)ranges ); */
+        sv_2mortal((SV*)ranges);
+
         break;
       }
 
@@ -954,7 +961,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
             /* Tack on an undev instead */
             av_push( datum, newSV( 0 ) );
           } else {
-            av_push( datum, *(av_fetch( ranges, i, 0 )) );
+            av_push( datum, newSVsv(*(elem)) );
           }
           av_push( datum, newSViv(data[i]) );
 
@@ -968,6 +975,13 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
         }
 
         val = newRV_noinc( (SV *) lquantize );
+
+        /* Cleanup our temporary ranges AV, if it exists */
+        /* warn("RANGES   has REFCOUNT: %d", SvREFCNT( (SV *)ranges )); */
+        /* TODO: Make sure this is a real AV before we do this... */
+        /* SvREFCNT_dec( (SV *)ranges ); */
+        sv_2mortal((SV*)ranges);
+
         break;
       }
 
@@ -977,6 +991,8 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
             action(aggrec, errbuf, sizeof (errbuf)),
             aggdesc->dtagd_name);
       return (DTRACE_AGGWALK_ERROR);
+
+
   }
 
   SV *key_aref = newRV_noinc( (SV *) key );
@@ -1001,6 +1017,9 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
 
   /* Now that we're done with the references we've created, we decrement their
    * refcounts so they'll be synchronously reclaimed/freed */
+  warn("ID       has REFCOUNT: %d", SvREFCNT( id ));
+  warn("KEY AREF has REFCOUNT: %d", SvREFCNT( key_aref ));
+  warn("VAL HREF has REFCOUNT: %d", SvREFCNT( val ));
   SvREFCNT_dec( id );
   SvREFCNT_dec( key_aref );
   SvREFCNT_dec( val );
