@@ -1017,9 +1017,11 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
 
   /* Now that we're done with the references we've created, we decrement their
    * refcounts so they'll be synchronously reclaimed/freed */
+  /*
   warn("ID       has REFCOUNT: %d", SvREFCNT( id ));
   warn("KEY AREF has REFCOUNT: %d", SvREFCNT( key_aref ));
   warn("VAL HREF has REFCOUNT: %d", SvREFCNT( val ));
+  */
   SvREFCNT_dec( id );
   SvREFCNT_dec( key_aref );
   SvREFCNT_dec( val );
