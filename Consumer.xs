@@ -284,6 +284,11 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *object)
   if (count != 0)
     croak("bufhandler: failed to call callback!");
 
+  /* Now that we're done with the hrefs we created here, decrement their
+   * reference counts so they'll be synchronously reclaimed/freed */
+  SvREFCNT_dec(probe_href);
+  SvREFCNT_dec(rec_href);
+
   FREETMPS;
   LEAVE;
 
@@ -326,50 +331,37 @@ consume_callback_caller(const dtrace_probedata_t *data,
   /* Get the result of the probedesc() call, should be a href */
   probe_href = newRV_noinc( (SV *)probe_hash);
 
-  /* Handle case where the rec is NULL */
-  if (rec == NULL) {
-    warn("In consume rec == NULL call path");
-    /* Call the callback with *just* the probe description */
-    PUSHMARK(SP);
-    XPUSHs(probe_href);
-    PUTBACK;
+  /* Assume the record we received is NULL; if we actually find it's not,
+   * then we can later overwrite rec_href with an actual reference
+   */
 
-    count = call_sv(callback, G_DISCARD);
+  /* If we actually have a record */
+  if (rec != NULL) {
+    if (!valid(rec)) {
+      char errbuf[256];
 
-    SPAGAIN;
+      /* If this is a printf(), we defer to the bufhandler. */
+      if (rec->dtrd_action == DTRACEACT_PRINTF)
+        return (DTRACE_CONSUME_THIS);
 
-    /* This check shouldn't really be necessary, as we're discarding the
-       result of the callback */
-    if (count != 0)
-      croak("consume_callback_caller: failed to call callback!");
+      ctx->dtc_error =
+        error("unsupported action %s in record for %s:%s:%s:%s\n",
+            action(rec, errbuf, sizeof(errbuf)),
+            pd->dtpd_provider, pd->dtpd_mod,
+            pd->dtpd_func, pd->dtpd_name);
+      return (DTRACE_CONSUME_ABORT);
+    }
 
-    FREETMPS;
-    LEAVE;
-  
-    return(DTRACE_CONSUME_NEXT);
+    rec_hash = newHV();
+
+    hv_store(rec_hash, "data", strlen("data"),
+             record((SV *)object, rec, data->dtpda_data), 0);
+
+    rec_href   = newRV_noinc((SV *)rec_hash);
+  } else {
+    /* If we don't have a record, create a new undef SV to pass in */
+    rec_href   = newSVsv(&PL_sv_undef);
   }
-
-  if (!valid(rec)) {
-    char errbuf[256];
-
-    /* If this is a printf(), we defer to the bufhandler. */
-    if (rec->dtrd_action == DTRACEACT_PRINTF)
-      return (DTRACE_CONSUME_THIS);
-
-    ctx->dtc_error =
-      error("unsupported action %s in record for %s:%s:%s:%s\n",
-                 action(rec, errbuf, sizeof(errbuf)),
-                 pd->dtpd_provider, pd->dtpd_mod,
-                 pd->dtpd_func, pd->dtpd_name);
-    return (DTRACE_CONSUME_ABORT);
-  }
-
-  rec_hash = newHV();
-
-  hv_store(rec_hash, "data", strlen("data"),
-           record((SV *)object, rec, data->dtpda_data), 0);
- 
-  rec_href   = newRV_noinc((SV *)rec_hash);
 
   PUSHMARK(SP);
   /* push the probe_href and record_href onto the stack for the callback
@@ -387,11 +379,26 @@ consume_callback_caller(const dtrace_probedata_t *data,
 
   /* TODO: Pop something off the stack here? */
 
+  /* Info on reference counts for our hrefs and their children */
+  /*
   warn("consume PROBE HREF");
   sv_dump(probe_href);
   if (SvROK(rec_href)) {
     warn("consume RECORD HREF:");
     sv_dump(rec_href);
+  }
+  */
+
+  /* Now that we're done with our hrefs, decrement their reference counts so
+   * they'll be synchronously reclaimed/freed */
+  SvREFCNT_dec(probe_href);
+  if (SvOK(rec_href)) {
+    /* It's entirely possible that the record was never filled out, so only
+     * decrement the reference to something that actually exists */
+    SvREFCNT_dec(rec_href);
+  } else if (rec_href == &PL_sv_undef) {
+    warn("consume_callback_caller: cleaning up UNDEF REC HREF");
+    SvREFCNT_dec(rec_href);
   }
 
   FREETMPS;
