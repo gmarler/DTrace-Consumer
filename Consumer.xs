@@ -284,6 +284,11 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *object)
   if (count != 0)
     croak("bufhandler: failed to call callback!");
 
+  /* Now that we're done with the hrefs we created here, decrement their
+   * reference counts so they'll be synchronously reclaimed/freed */
+  SvREFCNT_dec(probe_href);
+  SvREFCNT_dec(rec_href);
+
   FREETMPS;
   LEAVE;
 
@@ -308,14 +313,6 @@ consume_callback_caller(const dtrace_probedata_t *data,
 
   if ( svp && SvOK(*svp) ) {
     ctx = (CTX *)SvIV(*svp);
-    /* TODO: We don't need the dtc_handler here - remove it */
-    /*
-    if (ctx->dtc_handle) {
-      dtp = ctx->dtc_handle;
-    } else {
-      croak("consume_callback_caller: No valid DTrace handle!");
-    }
-    */
   }
   /* Extract the callback */
   callback = ctx->dtc_callback;
@@ -334,49 +331,37 @@ consume_callback_caller(const dtrace_probedata_t *data,
   /* Get the result of the probedesc() call, should be a href */
   probe_href = newRV_noinc( (SV *)probe_hash);
 
-  /* Handle case where the rec is NULL */
-  if (rec == NULL) {
-    /* Call the callback with *just* the probe description */
-    PUSHMARK(SP);
-    XPUSHs(probe_href);
-    PUTBACK;
+  /* Assume the record we received is NULL; if we actually find it's not,
+   * then we can later overwrite rec_href with an actual reference
+   */
 
-    count = call_sv(callback, G_DISCARD);
+  /* If we actually have a record */
+  if (rec != NULL) {
+    if (!valid(rec)) {
+      char errbuf[256];
 
-    SPAGAIN;
+      /* If this is a printf(), we defer to the bufhandler. */
+      if (rec->dtrd_action == DTRACEACT_PRINTF)
+        return (DTRACE_CONSUME_THIS);
 
-    /* This check shouldn't really be necessary, as we're discarding the
-       result of the callback */
-    if (count != 0)
-      croak("consume_callback_caller: failed to call callback!");
+      ctx->dtc_error =
+        error("unsupported action %s in record for %s:%s:%s:%s\n",
+            action(rec, errbuf, sizeof(errbuf)),
+            pd->dtpd_provider, pd->dtpd_mod,
+            pd->dtpd_func, pd->dtpd_name);
+      return (DTRACE_CONSUME_ABORT);
+    }
 
-    FREETMPS;
-    LEAVE;
-  
-    return(DTRACE_CONSUME_NEXT);
+    rec_hash = newHV();
+
+    hv_store(rec_hash, "data", strlen("data"),
+             record((SV *)object, rec, data->dtpda_data), 0);
+
+    rec_href   = newRV_noinc((SV *)rec_hash);
+  } else {
+    /* If we don't have a record, create a new undef SV to pass in */
+    rec_href   = newSVsv(&PL_sv_undef);
   }
-
-  if (!valid(rec)) {
-    char errbuf[256];
-
-    /* If this is a printf(), we defer to the bufhandler. */
-    if (rec->dtrd_action == DTRACEACT_PRINTF)
-      return (DTRACE_CONSUME_THIS);
-
-    ctx->dtc_error =
-      error("unsupported action %s in record for %s:%s:%s:%s\n",
-                 action(rec, errbuf, sizeof(errbuf)),
-                 pd->dtpd_provider, pd->dtpd_mod,
-                 pd->dtpd_func, pd->dtpd_name);
-    return (DTRACE_CONSUME_ABORT);
-  }
-
-  rec_hash = newHV();
-
-  hv_store(rec_hash, "data", strlen("data"),
-           record((SV *)object, rec, data->dtpda_data), 0);
- 
-  rec_href   = newRV_noinc((SV *)rec_hash);
 
   PUSHMARK(SP);
   /* push the probe_href and record_href onto the stack for the callback
@@ -393,6 +378,28 @@ consume_callback_caller(const dtrace_probedata_t *data,
     croak("consume_callback_caller: FAIL!\n");
 
   /* TODO: Pop something off the stack here? */
+
+  /* Info on reference counts for our hrefs and their children */
+  /*
+  warn("consume PROBE HREF");
+  sv_dump(probe_href);
+  if (SvROK(rec_href)) {
+    warn("consume RECORD HREF:");
+    sv_dump(rec_href);
+  }
+  */
+
+  /* Now that we're done with our hrefs, decrement their reference counts so
+   * they'll be synchronously reclaimed/freed */
+  SvREFCNT_dec(probe_href);
+  if (SvOK(rec_href)) {
+    /* It's entirely possible that the record was never filled out, so only
+     * decrement the reference to something that actually exists */
+    SvREFCNT_dec(rec_href);
+  } else if (rec_href == &PL_sv_undef) {
+    warn("consume_callback_caller: cleaning up UNDEF REC HREF");
+    SvREFCNT_dec(rec_href);
+  }
 
   FREETMPS;
   LEAVE;
@@ -789,7 +796,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
           av_push( temp, newSViv(min) );
           av_push( temp, newSViv(max) );
           /* Take a reference to the array we just created */
-          temp_aref = newRV( (SV *)temp );
+          temp_aref = newRV_noinc( (SV *)temp );
 
           /* And push it on the ranges array, presumably at the same index as 'i' */
           av_push( ranges, temp_aref );
@@ -801,12 +808,12 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
 
           datum = newAV();
           /* TODO: Check that av_fetch() returns non-NULL before dereferencing it */
-          av_push( datum, *(av_fetch(ranges, i, 0 )) );
+          av_push( datum, newSVsv(*(av_fetch(ranges, i, 0 ))) );
           av_push( datum, newSViv(data[i]) );
 
           /* Take a reference to datum and store in quantize */
 
-          temp_aref = newRV( (SV *)datum );
+          temp_aref = newRV_noinc( (SV *)datum );
 
           if (av_store(quantize, j++, temp_aref) == 0) {
             SvREFCNT_dec(temp_aref);
@@ -815,6 +822,13 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
         }
 
         val = newRV_noinc( (SV *) quantize );
+
+        /* Cleanup our temporary ranges AV, if it exists */
+        /* warn("RANGES   has REFCOUNT: %d", SvREFCNT( (SV *)ranges )); */
+        /* TODO: Make sure this is a real AV before we do this... */
+        /* SvREFCNT_dec( (SV *)ranges ); */
+        sv_2mortal((SV*)ranges);
+
         break;
       }
 
@@ -854,7 +868,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
             av_push( temp, newSViv(min) );
             av_push( temp, newSViv(max) );
             /* Take a reference to the array we just created */
-            temp_aref = newRV( (SV *)temp );
+            temp_aref = newRV_noinc( (SV *)temp );
 
             /* And push it on the ranges array, presumably at the same index as 'i' */
             av_push( ranges, temp_aref );
@@ -901,7 +915,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
             av_push( temp, newSViv(value + step - 1) );
 
             /* Take a reference to the array we just created */
-            temp_aref = newRV( (SV *)temp );
+            temp_aref = newRV_noinc( (SV *)temp );
 
             /* And insert it into ranges array, at the right bucket */
             if (av_store(ranges, bucket, temp_aref) == 0) {
@@ -947,12 +961,12 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
             /* Tack on an undev instead */
             av_push( datum, newSV( 0 ) );
           } else {
-            av_push( datum, *(av_fetch( ranges, i, 0 )) );
+            av_push( datum, newSVsv(*(elem)) );
           }
           av_push( datum, newSViv(data[i]) );
 
           /* Take a reference to datum and store in quantize */
-          temp_aref = newRV( (SV *)datum );
+          temp_aref = newRV_noinc( (SV *)datum );
 
           if (av_store(lquantize, j++, temp_aref) == 0) {
             SvREFCNT_dec(temp_aref);
@@ -961,6 +975,13 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
         }
 
         val = newRV_noinc( (SV *) lquantize );
+
+        /* Cleanup our temporary ranges AV, if it exists */
+        /* warn("RANGES   has REFCOUNT: %d", SvREFCNT( (SV *)ranges )); */
+        /* TODO: Make sure this is a real AV before we do this... */
+        /* SvREFCNT_dec( (SV *)ranges ); */
+        sv_2mortal((SV*)ranges);
+
         break;
       }
 
@@ -970,14 +991,17 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
             action(aggrec, errbuf, sizeof (errbuf)),
             aggdesc->dtagd_name);
       return (DTRACE_AGGWALK_ERROR);
+
+
   }
 
   SV *key_aref = newRV_noinc( (SV *) key );
+
   /* Put the right items on the stack */
   PUSHMARK(SP);
-  XPUSHs(sv_2mortal( id ));
-  XPUSHs(sv_2mortal( key_aref ));
-  XPUSHs(sv_2mortal( val ));
+  XPUSHs( id );
+  XPUSHs( key_aref );
+  XPUSHs( val );
   PUTBACK;
 
   /* Call the callback */
@@ -991,9 +1015,20 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
   if (count != 0)
     croak("aggwalk_callback_caller: failed to call callback!");
 
+  /* Now that we're done with the references we've created, we decrement their
+   * refcounts so they'll be synchronously reclaimed/freed */
+  /*
+  warn("ID       has REFCOUNT: %d", SvREFCNT( id ));
+  warn("KEY AREF has REFCOUNT: %d", SvREFCNT( key_aref ));
+  warn("VAL HREF has REFCOUNT: %d", SvREFCNT( val ));
+  */
+  SvREFCNT_dec( id );
+  SvREFCNT_dec( key_aref );
+  SvREFCNT_dec( val );
+
   FREETMPS;
   LEAVE;
- 
+
   return (DTRACE_AGGWALK_REMOVE);
 }
 
@@ -1337,7 +1372,7 @@ aggwalk(SV *self, SV *callback )
      * Flush the ranges cache; the ranges will go out of scope when the destructor
      * for our object is called, and we cannot be left holding references.
      */
-    ranges_cache(DTRACE_AGGVARIDNONE, NULL, (void *)self);
+    /* ranges_cache(DTRACE_AGGVARIDNONE, NULL, (void *)self); */
 
     if (rval == -1) {
       if (ctx->dtc_error != NULL)

@@ -1,0 +1,63 @@
+#!/usr/bin/env perl
+
+use v5.18.1;
+use feature qw(say);
+
+use strict;
+use warnings;
+
+
+# PODNAME: consume-leak
+
+use DTrace::Consumer;
+use Devel::Leak;
+use Devel::Peek;
+use IO::Async::Loop;
+use IO::Async::Timer::Periodic;
+
+my $prog = q!
+tick-50ms {
+  trace(i++);
+  /* printf("PRINTF TEST\\n"); */
+}
+!;
+
+my $dtc = DTrace::Consumer->new();
+$dtc->strcompile($prog);
+$dtc->go();
+
+my $loop = IO::Async::Loop->new;
+
+my $iterations;
+my $timer = IO::Async::Timer::Periodic->new(
+   interval => 1,
+ 
+   on_tick => sub {
+     $iterations++;
+
+     $dtc->consume(
+       sub {
+         # say "====================== CALLBACK ARGS BEGIN =========================";
+         # Devel::Peek::Dump( \@_ );
+         # say "====================== CALLBACK ARGS END   =========================";
+         my ($probe, $rec) = @_;
+
+         if (!$rec) { return; }
+
+         if ($iterations > 50) {
+           # Stop the loop
+           # $loop->loop_stop();
+         }
+       }
+     );
+   },
+);
+ 
+$timer->start;
+ 
+$loop->add( $timer );
+ 
+$loop->run;
+
+
+
