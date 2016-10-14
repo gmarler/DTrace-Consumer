@@ -35,7 +35,7 @@ int         bufhandler(const dtrace_bufdata_t *bufdata, void *object);
 int         consume_callback_caller(const dtrace_probedata_t *data,
                                     const dtrace_recdesc_t   *rec,
                                     void                     *object);
-int       drop_handler(const dtrace_t_dropdata_t *dropdata, void *object);
+int       drop_handler(const dtrace_dropdata_t *dropdata, void *object);
 AV *     ranges_cached(dtrace_aggvarid_t varid, void *object);
 AV *      ranges_cache(dtrace_aggvarid_t varid, AV *ranges, void *object);
 AV *   ranges_quantize(dtrace_aggvarid_t varid, void *object);
