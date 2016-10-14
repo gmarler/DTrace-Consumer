@@ -36,10 +36,6 @@ syscall:::return
 
 lives_ok( sub { $dtc->go(); } );
 
-my ($seen, $lastrec);
-
-my ($secs, $val);
-
 my $loop = IO::Async::Loop->new;
 
 my $iterations;
