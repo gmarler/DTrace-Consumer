@@ -174,8 +174,9 @@ $timer = IO::Async::Timer::Periodic->new(
 
          if (($val = $rec->{data}) > 3) {
            # Stop the timer
-           $loop->remove( $timer );
+           #$loop->remove( $timer );
            $loop->loop_stop();
+           $dtc->stop();
          }
          # diag Dumper( $rec );
        }
