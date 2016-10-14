@@ -1116,7 +1116,7 @@ new( const char *class )
 const char *
 version(...)
   CODE:
-    RETVAL = "0.0.3";
+    RETVAL = "0.0.5";
   OUTPUT: RETVAL
 
 void
