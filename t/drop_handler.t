@@ -52,7 +52,6 @@ $timer = IO::Async::Timer::Periodic->new(
  
    on_tick => sub {
      $iterations++;
-     say "on_tick ITERATION: $iterations";
      $dtc->aggwalk(
        sub {
          my ($varid, $key, $val) = @_;
@@ -62,7 +61,6 @@ $timer = IO::Async::Timer::Periodic->new(
            #$loop->remove( $timer );
            $loop->loop_stop();
          }
-         # diag Dumper( $rec );
        }
      );
    },
