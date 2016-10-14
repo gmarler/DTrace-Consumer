@@ -7,6 +7,7 @@ use Test::Most;
 use Data::Dumper;
 use IO::Async::Timer::Periodic;
 use IO::Async::Loop;
+use Test::Output;
 
 
 use_ok( 'DTrace::Consumer' );
@@ -43,34 +44,41 @@ lives_ok(
 
 lives_ok( sub { $dtc->go(); } );
 
-my $loop = IO::Async::Loop->new;
-
-my ($iterations, $timer);
-
-$timer = IO::Async::Timer::Periodic->new(
-   interval => 1,
- 
-   on_tick => sub {
-     $iterations++;
-     $dtc->aggwalk(
-       sub {
-         my ($varid, $key, $val) = @_;
-
-         if ($iterations > 5) {
-           # Stop the timer
-           #$loop->remove( $timer );
-           $loop->loop_stop();
+sub test_drops {
+  my $loop = IO::Async::Loop->new;
+  
+  my ($iterations, $timer);
+  
+  $timer = IO::Async::Timer::Periodic->new(
+     interval => 1,
+   
+     on_tick => sub {
+       $iterations++;
+       $dtc->aggwalk(
+         sub {
+           my ($varid, $key, $val) = @_;
+  
+           if ($iterations > 3) {
+             # Stop the timer
+             #$loop->remove( $timer );
+             $loop->loop_stop();
+             $dtc->stop();
+           }
          }
-       }
-     );
-   },
-);
- 
-$timer->start;
- 
-$loop->add( $timer );
- 
-$loop->run;
+       );
+     },
+  );
+   
+  $timer->start;
+   
+  $loop->add( $timer );
+   
+  $loop->run;
+}
+
+stderr_like(\&test_drops,
+            qr//,
+            'drops produce messages on STDERR');
 
 done_testing();
 
