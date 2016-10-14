@@ -77,7 +77,7 @@ sub test_drops {
 }
 
 stderr_like(\&test_drops,
-            qr/no drops/,
+            qr/^\d+\s+dynamic\s+variable\s+drops/smx,
             'drops produce messages on STDERR');
 
 done_testing();
