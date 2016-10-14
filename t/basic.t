@@ -172,7 +172,7 @@ $timer = IO::Async::Timer::Periodic->new(
 
          if (!$rec) { return; }
 
-         if (($val = $rec->{data}) > 5) {
+         if (($val = $rec->{data}) > 3) {
            # Stop the timer
            $loop->remove( $timer );
            $loop->loop_stop();

@@ -8,6 +8,7 @@ use Scalar::Util qw(reftype);
 use Data::Dumper;
 use IO::Async::Timer::Periodic;
 use IO::Async::Loop;
+use Test::Output;
 
 use_ok( 'DTrace::Consumer' );
 
@@ -153,7 +154,7 @@ sub test_drops {
   
            if ($iterations > 3) {
              # Stop the timer
-             $loop->remove( $timer );
+             #$loop->remove( $timer );
              $loop->loop_stop();
              $dtc->stop();
            }
