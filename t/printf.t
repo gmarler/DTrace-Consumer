@@ -35,8 +35,8 @@ lives_ok(
         cmp_ok($probe->{name}, 'eq', 'BEGIN',
                'probe name is BEGIN');
 
-        diag Dumper( $probe );
-        diag Dumper( $rec );
+        #diag Dumper( $probe );
+        #diag Dumper( $rec );
       }
     );
   },
