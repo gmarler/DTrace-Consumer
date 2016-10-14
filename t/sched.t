@@ -29,8 +29,6 @@ sched:::off-cpu
 }
 ";
 
-diag $prog;
-
 lives_ok(
   sub {
     $dtc->setopt('aggrate','10ms');
@@ -56,9 +54,7 @@ lives_ok(
   sub {
     $dtc->aggwalk(
       sub {
-        diag Data::Dumper::Dumper( \@_ );
         my ($varid, $key, $val) = @_;
-
         
       }
     );

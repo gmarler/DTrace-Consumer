@@ -125,7 +125,7 @@ lives_ok(
   sub {
     $dtc->aggwalk(
       sub {
-        diag Data::Dumper::Dumper( \@_ );
+        # diag Data::Dumper::Dumper( \@_ );
         my ($varid, $key, $val) = @_;
 
       }
@@ -147,7 +147,7 @@ $timer = IO::Async::Timer::Periodic->new(
      $dtc->aggwalk(
        sub {
          say "agg_walk CALLBACK ITERATION: $iterations";
-         diag Data::Dumper::Dumper( \@_ );
+         # diag Data::Dumper::Dumper( \@_ );
          my ($varid, $key, $val) = @_;
 
          if ($iterations > 7) {

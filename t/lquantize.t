@@ -22,7 +22,7 @@ for (my $i = -5; $i < 15; $i++) {
 
 $prog .= "}\n";
 
-diag $prog;
+# diag $prog;
 
 lives_ok(
   sub {
@@ -42,7 +42,7 @@ lives_ok(
   sub {
     $dtc->aggwalk(
       sub {
-        diag Data::Dumper::Dumper( \@_ );
+        # diag Data::Dumper::Dumper( \@_ );
         my ($varid, $key, $val) = @_;
 
         my $expected = 
@@ -84,7 +84,7 @@ for (my $i = -100; $i < 100; $i++) {
 
 $prog .= "}\n";
 
-diag $prog;
+# diag $prog;
 
 lives_ok(
   sub {
@@ -104,7 +104,7 @@ lives_ok(
   sub {
     $dtc->aggwalk(
       sub {
-        diag Data::Dumper::Dumper( \@_ );
+        # diag Data::Dumper::Dumper( \@_ );
         my ($varid, $key, $val) = @_;
 
         my $expected =

@@ -22,8 +22,6 @@ for (my $i = -32; $i < 32; $i++) {
 
 $prog .= "}\n";
 
-diag $prog;
-
 lives_ok(
   sub {
     $dtc->strcompile($prog);
@@ -42,7 +40,7 @@ lives_ok(
   sub {
     $dtc->aggwalk(
       sub {
-        diag Data::Dumper::Dumper( \@_ );
+        #diag Data::Dumper::Dumper( \@_ );
         my ($varid, $key, $val) = @_;
 
         my $expected =

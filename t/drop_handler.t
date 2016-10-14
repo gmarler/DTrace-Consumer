@@ -77,7 +77,7 @@ sub test_drops {
 }
 
 stderr_like(\&test_drops,
-            qr//,
+            qr/no drops/,
             'drops produce messages on STDERR');
 
 done_testing();

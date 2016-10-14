@@ -94,7 +94,7 @@ my $aggacts = {
                              ] },
 };
 
-diag "AGGACTS:\n" . Dumper($aggacts);
+# diag "AGGACTS:\n" . Dumper($aggacts);
 
 my $varids = [ '' ];  # initialize with a 0'th item
 my $prog = "BEGIN\n{\n";
@@ -109,8 +109,8 @@ foreach my $act (keys %$aggacts) {
 
 $prog .= "}\n";
 
-diag "VARIDs: " . Dumper( $varids );
-diag "PROGRAM:\n$prog";
+# diag "VARIDs: " . Dumper( $varids );
+# diag "PROGRAM:\n$prog";
 
 lives_ok(
   sub {
@@ -128,7 +128,7 @@ lives_ok(
 
 $dtc->aggwalk(
   sub {
-    diag Dumper( \@_ );
+    # diag Dumper( \@_ );
     my ($varid, $key, $val) = @_;
     ok($varids->[$varid], 'invalid variable ID ' . $varid);
     ok($aggacts->{$varids->[$varid]}, 'unknown variable ID ' . $varid);

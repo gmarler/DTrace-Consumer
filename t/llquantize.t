@@ -22,7 +22,7 @@ for (my $i = 0; $i < 101; $i++) {
 
 $prog .= "}\n";
 
-diag $prog;
+# diag $prog;
 
 lives_ok(
   sub {
@@ -98,7 +98,7 @@ for (my $i = 0; $i < 10100; $i += 50) {
 
 $prog .= "}\n";
 
-diag $prog;
+# diag $prog;
 
 lives_ok(
   sub {
