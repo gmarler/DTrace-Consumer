@@ -35,6 +35,7 @@ int         bufhandler(const dtrace_bufdata_t *bufdata, void *object);
 int         consume_callback_caller(const dtrace_probedata_t *data,
                                     const dtrace_recdesc_t   *rec,
                                     void                     *object);
+int       drop_handler(const dtrace_t_dropdata_t *dropdata, void *object);
 AV *     ranges_cached(dtrace_aggvarid_t varid, void *object);
 AV *      ranges_cache(dtrace_aggvarid_t varid, AV *ranges, void *object);
 AV *   ranges_quantize(dtrace_aggvarid_t varid, void *object);
@@ -235,6 +236,25 @@ record(SV *self, const dtrace_recdesc_t *rec, caddr_t addr)
   }
 
   return (newSViv(-1));
+}
+
+int
+drop_handler(const dtrace_dropdata_t *dropdata, void *object)
+{
+  dSP;
+
+  /* DTrace Consumer (dtc) will be passed in as 'object'  */
+  CTX *dtc = (CTX *)object;
+
+  ENTER;
+  SAVETMPS;
+
+  fprintf(stderr, "%s", dropdata->dtdda_msg);
+
+  FREETMPS;
+  LEAVE;
+
+  return( DTRACE_HANDLE_OK );
 }
 
 int
@@ -1073,6 +1093,13 @@ new( const char *class )
       croak("dtrace_handle_buffered failed: %s",
             dtrace_errmsg(dtp,dtrace_errno(dtp)));
 
+    /* 
+     * Drop Handler
+     */
+    if ((dtrace_handle_drop(dtp, drop_handler, ctx)) == -1)
+      croak("dtrace_handle_drop failed: %s",
+            dtrace_errmsg(dtp,dtrace_errno(dtp)));
+
     /* Store the pointer to the instance context struct in the hash
      * It's private, so if a user plays with it, everything breaks.
      */
@@ -1089,7 +1116,7 @@ new( const char *class )
 const char *
 version(...)
   CODE:
-    RETVAL = "0.0.2";
+    RETVAL = "0.0.3";
   OUTPUT: RETVAL
 
 void

@@ -105,7 +105,7 @@ fbt::fop_open:entry
 
 \;
 
-diag $prog;
+#diag $prog;
 
 lives_ok(
   sub {
