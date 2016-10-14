@@ -45,7 +45,7 @@ lives_ok( sub { $dtc->go(); } );
 
 my $loop = IO::Async::Loop->new;
 
-my ($probe, $rec, $iterations, $timer, $val);
+my ($iterations, $timer);
 
 $timer = IO::Async::Timer::Periodic->new(
    interval => 1,
