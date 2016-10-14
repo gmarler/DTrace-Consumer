@@ -1,10 +1,10 @@
 {
-   "abstract" : "Perl XS interface to libdtrace",
+   "abstract" : "A DTrace Consumer implemented in Perl XS",
    "author" : [
       "Gordon Marler <gmarler@gmarler.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Dist::Zilla version 5.032, CPAN::Meta::Converter version 2.142690",
+   "generated_by" : "Dist::Zilla version 5.039, CPAN::Meta::Converter version 2.150005",
    "license" : [
       "perl_5"
    ],
@@ -12,7 +12,7 @@
       "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
       "version" : 2
    },
-   "name" : "Devel-libdtrace",
+   "name" : "DTrace-Consumer",
    "no_index" : {
       "directory" : [
          "t",
@@ -32,6 +32,7 @@
       },
       "develop" : {
          "requires" : {
+            "English" : "0",
             "File::Spec" : "0",
             "File::Temp" : "0",
             "IO::Handle" : "0",
@@ -40,12 +41,20 @@
             "Test::CPAN::Meta" : "0",
             "Test::More" : "0",
             "Test::Pod" : "1.41",
-            "Test::Pod::Coverage" : "1.08"
+            "Test::Pod::Coverage" : "1.08",
+            "Test::Version" : "1"
          }
       },
       "runtime" : {
          "requires" : {
+            "Devel::Leak" : "0",
+            "Devel::Peek" : "0",
+            "IO::Async::Loop" : "0",
+            "IO::Async::Timer::Periodic" : "0",
+            "JSON::MaybeXS" : "0",
             "XSLoader" : "0",
+            "feature" : "0",
+            "perl" : "v5.18.1",
             "strict" : "0",
             "warnings" : "0"
          }
@@ -55,21 +64,28 @@
             "CPAN::Meta" : "2.120900"
          },
          "requires" : {
+            "Data::Dumper" : "0",
             "ExtUtils::MakeMaker" : "0",
             "File::Spec" : "0",
-            "Test::More" : "0"
+            "IO::File" : "0",
+            "Scalar::Util" : "0",
+            "Test::More" : "0",
+            "Test::Most" : "0",
+            "Test::Output" : "0",
+            "parent" : "0"
          }
       }
    },
    "provides" : {
-      "Devel::libdtrace" : {
-         "file" : "lib/Devel/libdtrace.pm",
-         "version" : "0.001"
+      "DTrace::Consumer" : {
+         "file" : "lib/DTrace/Consumer.pm",
+         "version" : "0.005"
       }
    },
    "release_status" : "stable",
-   "version" : "0.001",
+   "version" : "0.005",
    "x_contributors" : [
+      "Gordon Marler <gmarler@bloomberg.net>",
       "gmarler <gmarler@gmarler.com>"
    ]
 }
