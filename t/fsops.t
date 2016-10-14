@@ -151,7 +151,7 @@ sub test_drops {
            # diag Data::Dumper::Dumper( \@_ );
            my ($varid, $key, $val) = @_;
   
-           if ($iterations > 7) {
+           if ($iterations > 3) {
              # Stop the timer
              $loop->remove( $timer );
              $loop->loop_stop();

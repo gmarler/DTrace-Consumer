@@ -60,7 +60,7 @@ sub test_drops {
   
            if ($iterations > 3) {
              # Stop the timer
-             #$loop->remove( $timer );
+             $loop->remove( $timer );
              $loop->loop_stop();
              $dtc->stop();
            }
