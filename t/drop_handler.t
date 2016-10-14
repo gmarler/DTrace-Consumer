@@ -38,7 +38,7 @@ lives_ok( sub { $dtc->go(); } );
 
 my $loop = IO::Async::Loop->new;
 
-my ($probe, $rec, $iterations, $time, $val);
+my ($probe, $rec, $iterations, $timer, $val);
 
 $timer = IO::Async::Timer::Periodic->new(
    interval => 1,
@@ -52,7 +52,7 @@ $timer = IO::Async::Timer::Periodic->new(
 
          if (!$rec) { return; }
 
-         if (($val = $rec->{data}) > 5) {
+         if ($iterations > 5) {
            # Stop the timer
            $loop->remove( $timer );
            $loop->loop_stop();
