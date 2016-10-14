@@ -31,7 +31,7 @@ syscall:::return
 / self->ts /
 {
   @c[probefunc] = avg(timestamp - self->ts);
-  self->ts = 0;
+  self->ts      = 0;
 }
 \;
 

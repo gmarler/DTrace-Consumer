@@ -134,37 +134,46 @@ lives_ok(
   'walking lquantize agg 1 shows correct data'
 );
 
-my $loop = IO::Async::Loop->new;
-
-my $iterations;
-my $timer;
-$timer = IO::Async::Timer::Periodic->new(
-   interval => 1,
- 
-   on_tick => sub {
-     $iterations++;
-     say "on_tick ITERATION: $iterations";
-     $dtc->aggwalk(
-       sub {
-         say "agg_walk CALLBACK ITERATION: $iterations";
-         # diag Data::Dumper::Dumper( \@_ );
-         my ($varid, $key, $val) = @_;
-
-         if ($iterations > 7) {
-           # Stop the timer
-           #$loop->remove( $timer );
-           $loop->loop_stop();
+sub test_drops {
+  my $loop = IO::Async::Loop->new;
+  
+  my $iterations;
+  my $timer;
+  $timer = IO::Async::Timer::Periodic->new(
+     interval => 1,
+   
+     on_tick => sub {
+       $iterations++;
+       say "on_tick ITERATION: $iterations";
+       $dtc->aggwalk(
+         sub {
+           say "agg_walk CALLBACK ITERATION: $iterations";
+           # diag Data::Dumper::Dumper( \@_ );
+           my ($varid, $key, $val) = @_;
+  
+           if ($iterations > 7) {
+             # Stop the timer
+             $loop->remove( $timer );
+             $loop->loop_stop();
+             $dtc->stop();
+           }
+           # diag Dumper( $rec );
          }
-         # diag Dumper( $rec );
-       }
-     );
-   },
-);
- 
-$timer->start;
- 
-$loop->add( $timer );
- 
-$loop->run;
+       );
+     },
+  );
+   
+  $timer->start;
+   
+  $loop->add( $timer );
+   
+  $loop->run;
+}
+
+# This might drop nothing, and it might drop something - handle it
+stderr_like(\&test_drops,
+            qr/(|^\d+\s+dynamic\s+variable\s+drops)/smx,
+            'drops produce messages on STDERR');
+
 
 done_testing();
