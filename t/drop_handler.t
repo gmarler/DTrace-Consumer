@@ -34,6 +34,13 @@ syscall:::return
 }
 \;
 
+lives_ok(
+  sub {
+    $dtc->strcompile($prog);
+  },
+  'strcompile of dropping DTrace script'
+);
+
 lives_ok( sub { $dtc->go(); } );
 
 my $loop = IO::Async::Loop->new;
@@ -45,18 +52,17 @@ $timer = IO::Async::Timer::Periodic->new(
  
    on_tick => sub {
      $iterations++;
-
-     $dtc->consume(
+     say "on_tick ITERATION: $iterations";
+     $dtc->aggwalk(
        sub {
-         my ($probe, $rec) = @_;
-
-         if (!$rec) { return; }
+         my ($varid, $key, $val) = @_;
 
          if ($iterations > 5) {
            # Stop the timer
-           $loop->remove( $timer );
+           #$loop->remove( $timer );
            $loop->loop_stop();
          }
+         # diag Dumper( $rec );
        }
      );
    },
