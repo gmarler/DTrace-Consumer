@@ -3,6 +3,12 @@ package DTrace::Consumer;
 use strict;
 use warnings;
 use XSLoader;
+use ExtUtils::Constant qw(WriteConstants);
+
+WriteConstants(
+  NAME => 'DTrace::Consumer',
+  NAMES => [ qw(DTRACE_O_NODEV DTRACE_O_NOSYS DTRACE_O_LP64 DTRACE_O_ILP32) ],
+);
 
 # VERSION
 
@@ -17,6 +23,45 @@ __END__
 =head1 NAME
 
 DTrace::Consumer - A DTrace Consumer implemented in Perl XS
+
+=head1 SYNOPSIS
+
+ use DTrace::Consumer;
+
+ my $dtc = DTrace::Consumer->new();
+
+ $dtc->setopt("quiet");
+ $dtc->setopt("bufsize","512k");
+
+ my $prog = "
+ sched:::on-cpu
+ {
+   self->on = timestamp;
+ }
+ 
+ sched:::off-cpu
+ /self->on/
+ {
+   @ = lquantize((timestamp - self->on) / 1000,
+                 0, 10000, 100);
+ }
+ ";
+
+ $dtc->strcompile($prog);
+ $dtc->go();
+
+ $dtc->aggwalk(
+   sub {
+     my ($varid, $key, $val) = @_;
+ 
+     # ... This is where you handle the aggregations ...
+   }
+ );
+
+=head1 DESCRIPTION
+
+This module acts as a DTrace Consumer, which allows you, with the proper
+privileges, to use Perl to register DTrace scripts and actions.
 
 =method new
 
@@ -34,9 +79,21 @@ Allows setting DTrace options, with or without arguments.
 
 Will throw an exception if the option or argument are invalid.
 
+=over 4
+
+=item *
+
 $dtc->setopt("zdefs");
 
+An example of an option/pragma that doesn't take an argument.
+
+=item *
+
 $dtc->setopt("bufsize","512k");
+
+An example of an option/pragma that does take an argument.
+
+=back
 
 =method strcompile
 
