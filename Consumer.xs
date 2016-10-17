@@ -6,6 +6,7 @@
 #include "ppport.h"
 
 #include <dtrace.h>
+#include "const-c.inc"
 
 #ifndef B_TRUE
 #define B_TRUE 1
@@ -1059,6 +1060,7 @@ MODULE = DTrace::Consumer              PACKAGE = DTrace::Consumer
 
 # XS code
 
+INCLUDE:    const-xs.inc
 PROTOTYPES: ENABLED
 
 SV *
