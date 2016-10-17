@@ -37,6 +37,7 @@ int         consume_callback_caller(const dtrace_probedata_t *data,
                                     const dtrace_recdesc_t   *rec,
                                     void                     *object);
 int       drop_handler(const dtrace_dropdata_t *dropdata, void *object);
+int       error_handler(const dtrace_errdata_t *errdata,  void *object);
 AV *     ranges_cached(dtrace_aggvarid_t varid, void *object);
 AV *      ranges_cache(dtrace_aggvarid_t varid, AV *ranges, void *object);
 AV *   ranges_quantize(dtrace_aggvarid_t varid, void *object);
@@ -257,6 +258,26 @@ drop_handler(const dtrace_dropdata_t *dropdata, void *object)
 
   return( DTRACE_HANDLE_OK );
 }
+
+int
+error_handler(const dtrace_errdata_t *errdata, void *object)
+{
+  dSP;
+
+  /* DTrace Consumer (dtc) will be passed in as 'object'  */
+  CTX *dtc = (CTX *)object;
+
+  ENTER;
+  SAVETMPS;
+
+  fprintf(stderr, "%s", errdata->dteda_msg);
+
+  FREETMPS;
+  LEAVE;
+
+  return( DTRACE_HANDLE_OK );
+}
+
 
 int
 bufhandler(const dtrace_bufdata_t *bufdata, void *object)
