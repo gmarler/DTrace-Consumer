@@ -3,12 +3,6 @@ package DTrace::Consumer;
 use strict;
 use warnings;
 use XSLoader;
-use ExtUtils::Constant qw(WriteConstants);
-
-WriteConstants(
-  NAME => 'DTrace::Consumer',
-  NAMES => [ qw(DTRACE_O_NODEV DTRACE_O_NOSYS DTRACE_O_LP64 DTRACE_O_ILP32) ],
-);
 
 # VERSION
 
