@@ -1126,7 +1126,7 @@ new( const char *class )
     /* 
      * Error Handler
      */
-    if ((dtrace_handle_error(dtp, error_handler, ctx)) == -1)
+    if ((dtrace_handle_err(dtp, error_handler, ctx)) == -1)
       croak("dtrace_handle_error failed: %s",
             dtrace_errmsg(dtp,dtrace_errno(dtp)));
 
