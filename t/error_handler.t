@@ -19,7 +19,9 @@ can_ok( $dtc, qw( strcompile setopt go consume stop ) );
 
 my $prog = q\
 BEGIN {
-  trace(strlen(0));
+  x = (int *)NULL;
+  y = *x;
+  trace(y);
 }
 
 syscall:::entry

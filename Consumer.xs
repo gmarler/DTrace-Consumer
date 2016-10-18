@@ -1123,6 +1123,14 @@ new( const char *class )
       croak("dtrace_handle_drop failed: %s",
             dtrace_errmsg(dtp,dtrace_errno(dtp)));
 
+    /* 
+     * Error Handler
+     */
+    if ((dtrace_handle_error(dtp, error_handler, ctx)) == -1)
+      croak("dtrace_handle_error failed: %s",
+            dtrace_errmsg(dtp,dtrace_errno(dtp)));
+
+
     /* Store the pointer to the instance context struct in the hash
      * It's private, so if a user plays with it, everything breaks.
      */
