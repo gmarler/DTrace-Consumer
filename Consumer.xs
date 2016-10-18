@@ -270,7 +270,7 @@ error_handler(const dtrace_errdata_t *errdata, void *object)
   ENTER;
   SAVETMPS;
 
-  fprintf(stderr, "%s", errdata->dteda_msg);
+  fprintf(stderr, "WE GOTTA PROBLEM: %s", errdata->dteda_msg);
 
   FREETMPS;
   LEAVE;
