@@ -537,7 +537,7 @@ ranges_quantize(dtrace_aggvarid_t varid, void *object)
        * If we're less than the zero bucket, our range extends from
        * negative infinity through to the beginning of our zeroth
        * bucket.
-       */ 
+       */
       min = i > 0 ? DTRACE_QUANTIZE_BUCKETVAL(i - 1) + 1 : INT64_MIN;
       max = DTRACE_QUANTIZE_BUCKETVAL(i);
     } else if (i == DTRACE_QUANTIZE_ZEROBUCKET) {
@@ -723,7 +723,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
   if ( svp && SvOK(*svp) ) {
     ctx = (CTX *)SvIV(*svp);
   }
-  
+
   /* Extract the callback */
   SV  *callback  = ctx->dtc_callback;
 
@@ -822,7 +822,7 @@ aggwalk_callback_caller(const dtrace_aggdata_t *agg, void *object)
              * If we're less than the zero bucket, our range extends from
              * negative infinity through to the beginning of our zeroth
              * bucket.
-             */ 
+             */
             min = i > 0 ? DTRACE_QUANTIZE_BUCKETVAL(i - 1) + 1 : INT64_MIN;
             max = DTRACE_QUANTIZE_BUCKETVAL(i);
           } else if (i == DTRACE_QUANTIZE_ZEROBUCKET) {
@@ -1116,14 +1116,14 @@ new( const char *class )
       croak("dtrace_handle_buffered failed: %s",
             dtrace_errmsg(dtp,dtrace_errno(dtp)));
 
-    /* 
+    /*
      * Drop Handler
      */
     if ((dtrace_handle_drop(dtp, drop_handler, ctx)) == -1)
       croak("dtrace_handle_drop failed: %s",
             dtrace_errmsg(dtp,dtrace_errno(dtp)));
 
-    /* 
+    /*
      * Error Handler
      */
     if ((dtrace_handle_err(dtp, error_handler, ctx)) == -1)
