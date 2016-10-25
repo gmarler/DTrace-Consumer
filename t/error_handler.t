@@ -22,6 +22,7 @@ BEGIN {
   x = (int *)NULL;
   y = *x;
   trace(y);
+  trace(strlen(0));
 }
 
 syscall:::entry
@@ -37,7 +38,8 @@ lives_ok(
   'strcompile of erroring DTrace script'
 );
 
-lives_ok( sub { $dtc->go(); } );
+lives_ok( sub { $dtc->go(); },
+          'engage the DTrace probes that will generate an error');
 
 sub test_drops {
   my $loop = IO::Async::Loop->new;
@@ -53,7 +55,7 @@ sub test_drops {
          sub {
            my ($varid, $key, $val) = @_;
   
-           if ($iterations > 3) {
+           if ($iterations > 5) {
              # Stop the timer
              #$loop->remove( $timer );
              $loop->loop_stop();
