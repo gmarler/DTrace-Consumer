@@ -51,10 +51,10 @@ sub test_drops {
    
      on_tick => sub {
        $iterations++;
-       $dtc->aggwalk(
+       $dtc->consume(
          sub {
-           my ($varid, $key, $val) = @_;
-  
+           my (@data) = @_;
+           diag Dumper( \@data );
            if ($iterations > 5) {
              # Stop the timer
              #$loop->remove( $timer );
