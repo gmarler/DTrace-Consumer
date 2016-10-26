@@ -42,11 +42,11 @@ lives_ok( sub { $dtc->go(); },
           'engage the DTrace probes that will generate an error');
 
 sub test_error {
-  # We need to fail immediately in the consume, otherwise it'll never exit on its own
+  # We need to fail immediately in the consume, as the script is never going
+  # to run anyway
   $dtc->consume(
     sub {
-      diag("WAKA WAKA");
-      fail("Run long enough to generate an error"); 
+      fail("Run long enough to generate an error");
     }
   );
 }
