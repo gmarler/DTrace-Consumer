@@ -42,15 +42,15 @@ lives_ok( sub { $dtc->go(); },
           'engage the DTrace probes that will generate an error');
 
 sub test_error {
-  # We need to fail in the consume, otherwise it'll never exit on its own
+  # We need to fail immediately in the consume, otherwise it'll never exit on its own
   $dtc->consume(
     sub {
+      diag("WAKA WAKA");
       fail("Run long enough to generate an error"); 
     }
   );
 }
 
-#test_error();
 stderr_like(\&test_error,
             qr/^error\s+on\s+enabled\s+probe\s+ID/smx,
             'errors produce messages on STDERR');
