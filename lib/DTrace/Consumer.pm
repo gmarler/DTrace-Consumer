@@ -138,5 +138,11 @@ Allows walking the data collected by an aggregation and processing it.
 
 TODO: Describe callback that has to be provided.
 
+=for comment
+The following is just to make Dist::Zilla::Plugin::PodCoverageTests ignore the
+constant subroutint created by ExtUtils::Constant
 
+=for Pod::Coverage constant
+
+=cut
 
