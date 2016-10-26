@@ -41,42 +41,19 @@ lives_ok(
 lives_ok( sub { $dtc->go(); },
           'engage the DTrace probes that will generate an error');
 
-sub test_drops {
-  my $loop = IO::Async::Loop->new;
-  
-  my ($iterations, $timer);
-  
-  $timer = IO::Async::Timer::Periodic->new(
-     interval => 1,
-   
-     on_tick => sub {
-       $iterations++;
-       $dtc->consume(
-         sub {
-           my (@data) = @_;
-           diag Dumper( \@data );
-           if ($iterations > 5) {
-             # Stop the timer
-             #$loop->remove( $timer );
-             $loop->loop_stop();
-             $dtc->stop();
-           }
-         }
-       );
-     },
+sub test_error {
+  # We need to fail in the consume, otherwise it'll never exit on its own
+  $dtc->consume(
+    sub {
+      fail("Run long enough to generate an error"); 
+    }
   );
-   
-  $timer->start;
-   
-  $loop->add( $timer );
-   
-  $loop->run;
 }
 
-test_drops();
-#stderr_like(\&test_drops,
-#            qr/^\d+\s+dynamic\s+variable\s+drops/smx,
-#            'errors produce messages on STDERR');
+#test_error();
+stderr_like(\&test_error,
+            qr/^error\s+on\s+enabled\s+probe\s+ID/smx,
+            'errors produce messages on STDERR');
 
 done_testing();
 

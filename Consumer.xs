@@ -35,7 +35,7 @@ SV             *record(SV *self, const dtrace_recdesc_t *rec, caddr_t addr);
 int         bufhandler(const dtrace_bufdata_t *bufdata, void *object);
 int         consume_callback_caller(const dtrace_probedata_t *data,
                                     const dtrace_recdesc_t   *rec,
-                                    void                     *object);
+                                    void                     *arg);
 int       drop_handler(const dtrace_dropdata_t *dropdata, void *object);
 int       error_handler(const dtrace_errdata_t *errdata,  void *object);
 AV *     ranges_cached(dtrace_aggvarid_t varid, void *object);
@@ -340,7 +340,7 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *object)
 int
 consume_callback_caller(const dtrace_probedata_t *data,
                         const dtrace_recdesc_t   *rec,
-                        void                     *object)
+                        void                     *arg)
 {
   dSP;
   int count;
@@ -350,7 +350,7 @@ consume_callback_caller(const dtrace_probedata_t *data,
   SV  *rec_href;
   CTX *ctx;
   SV  *callback;
-  HV  *self_hash = (HV *)SvRV((SV *)object);
+  HV  *self_hash = (HV *)SvRV((SV *)arg);
   SV  **svp      = hv_fetchs( self_hash, "_my_instance_ctx", FALSE );
 
   if ( svp && SvOK(*svp) ) {
@@ -397,7 +397,7 @@ consume_callback_caller(const dtrace_probedata_t *data,
     rec_hash = newHV();
 
     hv_store(rec_hash, "data", strlen("data"),
-             record((SV *)object, rec, data->dtpda_data), 0);
+             record((SV *)arg, rec, data->dtpda_data), 0);
 
     rec_href   = newRV_noinc((SV *)rec_hash);
   } else {
@@ -1321,14 +1321,18 @@ consume(SV *self, SV *callback )
       }
     }
 
-    /* Set up callback and it's args */
-    /* Take a copy of the callback into our self*/
+    /* Set up callback and its args */
+    /* Take a copy of the callback into our self */
     if (ctx->dtc_callback == (SV*)NULL) {
       /* First time through, so create a new SV */
       ctx->dtc_callback = newSVsv(callback);
     } else {
       SvSetSV(ctx->dtc_callback, callback);
     }
+    /*
+    ctx->dtc_args  = callback;
+    ctx->dtc_error = (SV*)NULL;
+     */
 
     status = dtrace_work(dtp, NULL, NULL, consume_callback_caller, (void *)self);
 
