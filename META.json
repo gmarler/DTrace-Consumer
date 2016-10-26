@@ -79,11 +79,11 @@
    "provides" : {
       "DTrace::Consumer" : {
          "file" : "lib/DTrace/Consumer.pm",
-         "version" : "0.005"
+         "version" : "0.006"
       }
    },
    "release_status" : "stable",
-   "version" : "0.005",
+   "version" : "0.006",
    "x_contributors" : [
       "Gordon Marler <gmarler@bloomberg.net>",
       "gmarler <gmarler@gmarler.com>"
